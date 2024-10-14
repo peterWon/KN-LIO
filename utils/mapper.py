@@ -212,6 +212,7 @@ class Mapper:
         T1 = get_time()
 
         # sampling data for training
+        # 根据设定的config参数沿ray在表面及前后空间采样点
         (
             coord,
             sdf_label,
@@ -234,9 +235,9 @@ class Mapper:
         T2 = get_time()
 
         # update the neural point map
-        if self.config.from_sample_points:
+        if self.config.from_sample_points:#从沿射线采样的点
             if self.config.from_all_samples:
-                update_points = coord
+                update_points = coord 
             else:
                 update_points = coord[
                     torch.abs(sdf_label)
@@ -244,8 +245,8 @@ class Mapper:
                     * self.config.map_surface_ratio,
                     :,
                 ]
-                update_points = transform_torch(update_points, cur_pose_torch)
-        else:
+                update_points = transform_torch(update_points, cur_pose_torch) #可能有bug，上面没转换，下面self.neural_points.update()内会再转换？
+        else:#直接用测量的表面点
             update_points = transform_torch(frame_point_torch, cur_pose_torch)
 
         # prune map and recreate hash
@@ -270,6 +271,7 @@ class Mapper:
         T3 = get_time()
 
         # concat with current observations
+        # neural_point存索引，mapper存数据？好像不是，有重复
         self.coord_pool = torch.cat((self.coord_pool, coord), 0)
         self.weight_pool = torch.cat((self.weight_pool, weight), 0)
         self.sdf_label_pool = torch.cat((self.sdf_label_pool, sdf_label), 0)

@@ -1,11 +1,17 @@
 setting:
-  name: "test_kitti"
+  name: "test_viral"
+  use_dataloader: True
+  data_loader_name: 'viral'
+  data_loader_seq: 'sbs_01'
+  lidar_topic: '/os1_cloud_node1/points'
+  camera_topic: '/left/image_raw'
+  imu_topic: '/imu/imu'
   output_root: "./experiments"
-  pc_path: "/data0/dataset/data_odometry_velodyne/dataset/sequences/00/velodyne"
-  pose_path: "/data0/dataset/data_odometry_velodyne/dataset/poses/00.txt"
-  calib_path: "/data0/dataset/data_odometry_velodyne/dataset/sequences/00/calib.txt"
-  kitti_correct: True
-  correct_deg: 0.195
+  pc_path: "/data0/dataset/VIRAL/sbs_01/sbs_01.bag"
+  pose_path: ""
+  calib_path: ""
+  kitti_correct: False
+  correct_deg: 0
 process:
   min_range_m: 3.0
   max_range_m: 80.0
@@ -51,3 +57,7 @@ eval:
   sensor_cad_path: ./cad/kitti_car.ply
   mesh_freq_frame: 50 # reconstruct the mesh every x frames
   mesh_min_nn: 9
+  save_mesh: True
+  save_map: False
+  save_merged_pc: False
+  log_freq_frame: 50

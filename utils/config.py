@@ -28,6 +28,9 @@ class Config:
         self.use_dataloader: bool = False # use the dataloader providied by kiss-icp or not
         self.data_loader_name: str = "generic"
         self.data_loader_seq: str = ""
+        self.lidar_topic: str = ""
+        self.imu_topic: str = ""
+        self.camera_topic: str = ""
 
         self.load_model: bool = False  # load the pre-trained model or not
         self.model_path: str = "/"  # pre-trained model path
@@ -285,8 +288,8 @@ class Config:
 
         # result saving settings
         self.save_map: bool = False # save the neural point map model and decoders or not
-        self.save_merged_pc: bool = False # save the merged point cloud pc or not
-        self.save_mesh: bool = False # save the reconstructed mesh map or not
+        self.save_merged_pc: bool = True # save the merged point cloud pc or not
+        self.save_mesh: bool = True # save the reconstructed mesh map or not
 
         # ROS related 
         self.run_with_ros: bool = False
@@ -303,7 +306,17 @@ class Config:
         if "setting" in config_args:
             self.name = config_args["setting"].get("name", "pin_slam")
             
-            self.use_dataloader = config_args["setting"].get("use_kiss_icp_dataloader", False)
+            self.use_dataloader = config_args["setting"].get("use_dataloader", False)
+            self.data_loader_name = config_args["setting"].get("data_loader_name", 'generic')
+            
+            # add by wz
+            self.data_loader_seq = config_args["setting"].get("data_loader_seq", '00')
+            self.lidar_topic = config_args["setting"].get("lidar_topic", '/point_cloud2')
+            self.imu_topic = config_args["setting"].get("imu_topic", '/point_cloud2')
+            self.camera_topic = config_args["setting"].get("camera_topic", '/point_cloud2')
+
+            # print(self.use_dataloader, self.data_loader_name)
+            # print(self.data_loader_seq, self.data_loader_topic)
 
             self.output_root = config_args["setting"].get("output_root", "./experiments")
             self.pc_path = config_args["setting"].get("pc_path", "") 

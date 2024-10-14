@@ -15,7 +15,10 @@ from model.decoder import Decoder
 from model.neural_points import NeuralPoints
 from utils.config import Config
 from utils.tools import color_to_intensity, get_gradient, get_time, transform_torch
-
+from utils.esekf import ESEKF, ImuParameters
+from scipy.spatial.transform import Rotation as SSTR
+from utils.transformations import quaternion_matrix
+import utils.transformations as tr
 
 class Tracker:
     def __init__(
@@ -40,8 +43,124 @@ class Tracker:
         self.reg_local_map = True # for localization mode, set to False
 
         self.sdf_scale = config.logistic_gaussian_ratio * config.sigma_sigmoid_m
+        
+        self.imu_paras = ImuParameters() #TODO: read from config
+        self.eskf = None
+        
+        # extrinsics
+        # TODO:set in dataset config
+        self.T_IL = np.array([[1,0,0,-0.05],
+                              [0,1,0,0],
+                              [0,0,1, 0.055],
+                              [0,0,0,1]]) # lidar in imu
+        
+
+        # for initialization
+        self.initialized = False
+        self.imu_readings_cache = []
+        self.gravity = np.array([0, 0, -9.805])
+        self.imu_gyro_bias = []
+        self.imu_acc_bias = []
+        self.initial_pose = None # imu in world
+
+    def initialize(self):
+        # TODO: check variations
+        imu_readings = np.array(self.imu_readings_cache)
+
+        mean_angular_vel = np.mean(imu_readings[:,1:4], axis=0)
+        mean_linear_acc = np.mean(imu_readings[:,4:], axis=0)
+
+        self.imu_gyro_bias = mean_angular_vel
+        self.imu_acc_bias = np.array([0., 0., 0.])
+
+        va = -self.gravity.reshape(1,3)
+        vb = mean_linear_acc.reshape(1,3)
+        R, _= SSTR.align_vectors(va, vb)
+        pose = np.eye(4)
+        pose[:3,:3] = R.as_matrix()
+        
+        self.initial_pose = pose
+        self.initialized = True
+        
+        init_nominal_state = np.zeros((19,))
+        init_nominal_state[:3] = np.array([0., 0., 0.])            # init p, v, q
+        init_nominal_state[3:6] = np.array([0., 0., 0.]) 
+
+        q = R.as_quat()
+        q = q / np.linalg.norm(q)
+        init_nominal_state[6:10] = [q[3],q[0],q[1],q[2]]
+        init_nominal_state[10:13] = 0                           # init ba
+        init_nominal_state[13:16] = mean_angular_vel            # init bg
+        init_nominal_state[16:19] = self.gravity                # init g
+        self.eskf = ESEKF(init_nominal_state, self.imu_paras)
+        
+        print("Initialize succeed. Initial pose: ", pose)
+
+        return self.initial_pose
+
+    
+    def process_imu(self, imu_data, imu_ts):
+        meas = [imu_ts] + imu_data 
+
+        if not self.initialized:
+            self.imu_readings_cache.append(meas)
+        else:
+            self.eskf.predict(imu_measurement=np.array(meas))
+
+    
+    def process_image(self, image_data, image_ts):
+        pass
+    
+    def process_point_cloud(self, source_points, source_colors, source_normals, cur_pose_guess_torch):
+        # if not self.initialized:
+        #     self.initialized = True
+        #     return torch.tensor(torch.eye(4), device = self.device), None, None, True
+        # else:
+        #     T_WL, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points, cur_pose_guess_torch, source_colors, source_normals)# torch.tensor(T_WL_ns, device=self.device)
+        #     return T_WL, cov_mat, weight_point_cloud, valid_flag
+        
+        # imu logic
+        if not self.initialized:
+            T_WI = self.initialize()
+            T_WL = T_WI @ self.T_IL
+            
+            # print('Initial lidar pose: ', T_WL)
+            return torch.tensor(T_WL, device=self.device), None, None, True # return lidar pose in world frame
+        
+        # deskewing first
+
+        # get predicted pose
+        ns = self.eskf.nominal_state
+        p = ns[:3]
+        q = ns[6:10]
+        R = tr.quaternion_matrix(q)[:3, :3]
+        T_WI_ns = np.eye(4)
+        T_WI_ns[:3,:3] = R
+        T_WI_ns[:3, 3] = p
+        T_WL_ns = T_WI_ns @ self.T_IL
+
+        print('predicted nominal lidar pose: ', T_WL_ns)
+        print('cur_pose_guess_torch: ', cur_pose_guess_torch)
+        T_WL, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points, torch.tensor(T_WL_ns, device=self.device), source_colors, source_normals)# 
+
+        if not valid_flag:
+            print("Tracking Error")
+            return T_WL, cov_mat, weight_point_cloud, valid_flag
+        else:
+            sigma_measurement_p = 0.002   # in meters
+            sigma_measurement_q = 0.001  # in rad
+            sigma_measurement = np.eye(6)
+            sigma_measurement[0:3, 0:3] *= sigma_measurement_p**2
+            sigma_measurement[3:6, 3:6] *= sigma_measurement_q**2
+            T_WI = T_WL.cpu().numpy() @ np.linalg.inv(self.T_IL)
+            q = tr.quaternion_from_matrix(T_WI[:3,:3])
+            pq =  T_WI[:3, 3].tolist() + q.tolist()
+            self.eskf.update(pq, sigma_measurement)
+            return torch.tensor(T_WL, device=self.device), cov_mat, weight_point_cloud, True
+        
 
     # already under the scaled coordinate system
+    # origininally called tracking
     def tracking(
         self,
         source_points,
@@ -132,7 +251,7 @@ class Tracker:
 
             T03 = get_time()
 
-            T = delta_T @ T
+            T = delta_T @ T #左乘模型
 
             # the sdf residual should not increase too much during the optimization
             if (
@@ -599,7 +718,7 @@ class Tracker:
 
 # function adapted from LocNDF by Louis Wiesmann
 def implicit_reg(
-    points,
+    points, #已经左乘过R，即在地图坐标系下了
     sdf_grad,
     sdf_residual,
     weight,

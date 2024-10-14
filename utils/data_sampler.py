@@ -201,8 +201,8 @@ class DataSampler:
                 (
                     color_torch,
                     surface_color_tensor,
-                    free_color_front,
-                    free_color_behind,
+                    free_color_front, #torch.zeros
+                    free_color_behind,# torch.zeros
                 ),
                 0,
             )

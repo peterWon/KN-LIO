@@ -115,6 +115,7 @@ class NeuralPoints(nn.Module):
         self.local_point_orientations = torch.empty(
             (0, 4), dtype=self.dtype, device=self.device
         )  # as quaternion
+        # 只有features是可学习的？
         self.local_geo_features = nn.Parameter()
         self.local_color_features = nn.Parameter()
         self.local_point_certainties = torch.empty(
@@ -124,7 +125,7 @@ class NeuralPoints(nn.Module):
             (0), device=self.device, dtype=torch.int
         )
         self.local_mask = None
-        self.global2local = None
+        self.global2local = None #不是坐标转换，是index转换
 
         # set neighborhood search region
         self.set_search_neighborhood(
@@ -279,7 +280,8 @@ class NeuralPoints(nn.Module):
             neural_pc_o3d.colors = o3d.utility.Vector3dVector(random_color)
 
         return neural_pc_o3d
-
+    
+    # 新增待学习的神经点，扩展neural points相关的变量（如geo_features, points, orientations等）, 更新hash表
     def update(
         self,
         points: torch.Tensor,
@@ -298,7 +300,7 @@ class NeuralPoints(nn.Module):
 
         grid_coords = (sample_points / cur_resolution).floor().to(self.primes)
         buffer_size = int(self.buffer_size)
-        hash = torch.fmod((grid_coords * self.primes).sum(-1), buffer_size)
+        hash = torch.fmod((grid_coords * self.primes).sum(-1), buffer_size) #取余，同时保留符号，此处当作散列函数用
 
         hash_idx = self.buffer_pt_index[hash]
 
@@ -306,7 +308,8 @@ class NeuralPoints(nn.Module):
         if not self.is_empty():
             vec_points = self.neural_points[hash_idx] - sample_points
             dist2 = torch.sum(vec_points**2, dim=-1)
-
+            
+            # 对应hass_idx没有被占据或者新点的距离与原有点的距离满足一定条件
             update_mask = (hash_idx == -1) | (dist2 > 3 * cur_resolution**2)
 
             if self.temporal_local_map_on: # only done for the slam mode
@@ -339,6 +342,7 @@ class NeuralPoints(nn.Module):
         )
 
         # torch.cat could be slow for large map
+        # 更新hash表中新增点的索引
         self.buffer_pt_index[hash] = cur_pt_idx
         self.neural_points = torch.cat((self.neural_points, added_pt), 0)
 
@@ -356,7 +360,7 @@ class NeuralPoints(nn.Module):
         self.point_ts_create = torch.cat((self.point_ts_create, new_points_ts), 0)
         self.point_ts_update = torch.cat((self.point_ts_update, new_points_ts), 0)
 
-        # with padding in the end
+        # with padding in the end，为啥要加padding呢？
         new_fts = self.geo_feature_std * torch.randn(
             new_point_count + 1,
             self.geo_feature_dim,
@@ -385,7 +389,8 @@ class NeuralPoints(nn.Module):
         )  # no need to recreate hash
 
         return new_point_ratio
-
+    
+    # 根据travel距离、更新时间等筛选局部范围内的点作为局部地图
     def reset_local_map(
         self,
         sensor_position: torch.Tensor,
@@ -463,6 +468,7 @@ class NeuralPoints(nn.Module):
 
         self.local_orientation = sensor_orientation  # not used
 
+    # 将更新后的局部地图点及相关变量同步到全局地图中
     def assign_local_to_global(self):
 
         local_mask = self.local_mask
@@ -603,7 +609,8 @@ class NeuralPoints(nn.Module):
             )  # [N, K, F+P]
 
         eps = 1e-15  # avoid nan (dividing by 0)
-
+        
+        # 按照平方距离的倒数加权
         weight_vector = 1.0 / (
             dists2 + eps
         )  # [N, K] # Inverse distance weighting (IDW), distance square
@@ -625,6 +632,7 @@ class NeuralPoints(nn.Module):
         with torch.no_grad():
             # Certainty accumulation for each neural point according to the weight
             # Use scatter_add_ to accumulate the values for each index
+            # 获取加权的certainty
             if training_mode:  # only do it during the training mode
                 idx[~valid_mask] = 0  # scatter_add don't accept -1 index
                 if query_locally:
