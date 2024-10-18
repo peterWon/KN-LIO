@@ -141,7 +141,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     dataset = SLAMDataset(config)
 
     # odometry tracker
-    tracker = Tracker(config, neural_points, geo_mlp, sem_mlp, color_mlp)
+    tracker = Tracker(config, neural_points, geo_mlp, sem_mlp, color_mlp, dataset)
     if config.load_model and not mapping_on: 
         tracker.reg_local_map = False
 
@@ -178,10 +178,12 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
         # I. Load data and preprocessing
         dict_keys = list(frame_data.keys())
         if "points" in dict_keys: # TODO: support multiple LiDAR
+            T_lidar_start = get_time()
             points = frame_data["points"] # may also contain intensity or color
             point_ts = frame_data["point_ts"]
             
             dataset.cur_point_cloud_torch = torch.tensor(points, device=dataset.device, dtype=dataset.dtype)
+            dataset.cur_point_ts_torch = torch.tensor(point_ts, device=dataset.device, dtype=dataset.dtype)
             valid_frame = dataset.preprocess_scan(frame_id)
             if not valid_frame:
                 dataset.processed_frame += 1
@@ -190,7 +192,8 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
 
             # II. Odometry
             # 用frame-to-model registration，直接求SDF场梯度，用LM-ICP，而不是像一般neural slam那样算loss，优化位姿           
-            cur_lidar_pose_torch, _, weight_pc_o3d, valid_flag = tracker.process_point_cloud(dataset.cur_source_points, 
+            cur_lidar_pose_torch, _, weight_pc_o3d, valid_flag = tracker.process_point_cloud(
+                                                dataset.cur_source_points, dataset.cur_point_ts_torch,
                                                 dataset.cur_source_colors, dataset.cur_source_normals, dataset.cur_pose_guess_torch)
             dataset.lose_track = not valid_flag
 
@@ -208,7 +211,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             neural_points.travel_dist = torch.tensor(travel_dist, device=config.device, dtype=config.dtype) # always update this
                                                                                                                                                                 
             T3 = get_time()
-            
+            # print('Tracking time: ', (T3-T_lidar_start)*1e3)
             # IV: Mapping and bundle adjustment
             # if lose track, we will not update the map and data pool (don't let the wrong pose to corrupt the map)
             # if the robot stop, also don't process this frame, since there's no new oberservations
@@ -239,7 +242,9 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                 # 优化局部地图里面neaural point的特征，不更新位姿
                 if frame_id % config.mapping_freq_frame == 0:
                     mapper.mapping(cur_iter_num) 
-            
+                
+                T6=get_time()
+                # print('Mapping time: ', (T6-T5)*1e3)
 
             if config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0:
                 print('Processed {} frames'.format(frame_id+1))
@@ -333,11 +338,13 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                 # neural_points.clear_temp() # clear temp data for output
             frame_id += 1
             dataset.processed_frame += 1
-
+            T_lidar_end = get_time()
+            # print((T_lidar_end-T_lidar_start)* 1e3)
         elif "image" in dict_keys: # support multiple cameras
             image = frame_data["image"]
             image_ts = frame_data['image_ts']
             tracker.process_image(image, image_ts)
+            mapper.process_image(image, image_ts)
         elif "imu" in dict_keys:
             imus = frame_data['imu']
             imus_ts = frame_data['imu_ts']

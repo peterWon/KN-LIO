@@ -33,10 +33,12 @@ from utils.point_cloud2 import read_point_cloud
 
 from rosbags.highlevel import AnyReader
 from rosbags.image import message_to_cvimage
+import cv2
 from typing import cast
+import math
 
 class ViralDataset:
-    def __init__(self, data_dir: Path, lidar_topic: str, imu_topic: str, camera_topic: str, *_, **__):
+    def __init__(self, data_dir: Path, lidar_topic: str, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
         if data_dir.is_file():
             self.sequence_id = os.path.basename(data_dir).split(".")[0]
             self.bag = AnyReader([data_dir])
@@ -76,6 +78,64 @@ class ViralDataset:
         self.msgs = self.bag.messages(connections=connections)
         self.pointcloud_timestamps = []
         self.image_timestamps = []
+    
+        # imu parameters
+        self.accel_std = calibration['accel_std']
+        self.accel_rw = calibration['accel_rw']
+        self.gyro_std = calibration['gyro_std']
+        self.gyro_rw = calibration['gyro_rw']
+
+        # lidar parameters
+        self.T_IL = np.array(calibration['T_imu_hlidar']).reshape(4,4)
+
+        # camera parameters
+        self.T_IC = np.array(calibration['T_imu_camera']).reshape(4,4)
+        self.fx = calibration["fx"]
+        self.fy = calibration["fy"]
+        self.cx = calibration["cx"]
+        self.cy = calibration["cy"]
+        self.width = calibration["width"]
+        self.height = calibration["height"]
+        self.fovx = self.focal2fov(self.fx, self.width)
+        self.fovy = self.focal2fov(self.fy, self.height)
+        self.K = np.array(
+            [[self.fx, 0.0, self.cx], [0.0, self.fy, self.cy], [0.0, 0.0, 1.0]]
+        )
+        # distortion parameters
+        self.disorted = calibration["distorted"]
+        self.dist_coeffs = np.array(
+            [
+                calibration["k1"],
+                calibration["k2"],
+                calibration["p1"],
+                calibration["p2"],
+                0,
+            ]
+        )
+        self.map1x, self.map1y = cv2.initUndistortRectifyMap(
+            self.K,
+            self.dist_coeffs,
+            np.eye(3),
+            self.K,
+            (self.width, self.height),
+            cv2.CV_32FC1,
+        )
+
+        # # depth parameters
+        # self.has_depth = True if "depth_scale" in calibration.keys() else False
+        # self.depth_scale = calibration["depth_scale"] if self.has_depth else None
+
+        # # Default scene scale
+        # nerf_normalization_radius = 5
+        # self.scene_info = {
+        #     "nerf_normalization": {
+        #         "radius": nerf_normalization_radius,
+        #         "translation": np.zeros(3),
+        #     },
+        # }
+    
+    def focal2fov(self, focal, pixels):
+        return 2 * math.atan(pixels / (2 * focal))
 
     def __del__(self):
         if hasattr(self, "bag"):
@@ -91,13 +151,16 @@ class ViralDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts = read_point_cloud(msg)
-            frame_data = {"points": points, "point_ts": point_ts}
+            points, point_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
+            frame_data = {"points": points, "point_ts": point_ts} 
             self.pointcloud_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/Image':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            img = message_to_cvimage(msg, 'mono8') 
-            frame_data = {"image": img, "image_ts": self.to_sec(timestamp)}
+            image = message_to_cvimage(msg, 'mono8')
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            if self.disorted:
+                image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
+            frame_data = {"image": image, "image_ts": self.to_sec(timestamp)}
             self.image_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/Imu':
             # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Imu.html

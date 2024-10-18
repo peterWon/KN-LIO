@@ -46,6 +46,9 @@ class ESEKF(object):
         self.error_covar = Fi @ Qi @ Fi.T
 
         self.last_predict_time = 0.0
+        
+        # for convergence judgement
+        self.delta_T = [1e5,1e5,1e5,1e5,1e5,1e5]
 
     def predict(self, imu_measurement: np.array):
         """
@@ -59,7 +62,7 @@ class ESEKF(object):
         self.__predict_nominal_state(imu_measurement)
         self.last_predict_time = imu_measurement[0]  # update timestamp
 
-    def update(self, gt_measurement: np.array, measurement_covar: np.array):
+    def update_with_pose(self, gt_measurement: np.array, measurement_covar: np.array):
         """
         :param gt_measurement: [p, q], a 7x1 or 1x7 vector
         :param measurement_covar: a 6x6 symmetrical matrix = diag{sigma_p^2, sigma_theta^2}
@@ -74,8 +77,8 @@ class ESEKF(object):
         ground_truth - nominal_state = delta = H @ error_state + noise
         """
         H = np.zeros((6, 18)) #这里并不是7*18,因为选择轴角对四元数作了参数化,相当于对四元数对应的参数作error state的更新，则Eq. 279中对角度的偏导数结果同p,v一样，变成了单位阵
-        H[0:3, 0:3] = np.eye(3) #\partial{p}
-        H[3:6, 6:9] = np.eye(3) #\partial{q}
+        H[0:3, 0:3] = np.eye(3) #\partial{p} ni 
+        H[3:6, 6:9] = np.eye(3) #\partial{q} pixni
         PHt = self.error_covar @ H.T  # 18x6
         # compute Kalman gain. HPH^T, project the error covariance to the measurement space.
         K = PHt @ la.inv(H @ PHt + measurement_covar)  # 18x6
@@ -125,6 +128,74 @@ class ESEKF(object):
         """
         G = np.eye(18)
         G[6:9, 6:9] = np.eye(3) - tr.skew_matrix(0.5 * errors[6:9, 0])
+        self.error_covar = G @ self.error_covar @ G.T
+    
+    def update_with_sdf(self, points: np.array, sdf_normals: np.array, sdf_residual: np.array, point_normal_cross: np.array, measurement_covar: np.array):
+        """
+        :param points: nx3 array
+        :param point_normal_cross: nx3 array get by 'points x sdf_normals'
+        :param measurement_covar: nxn covariance matrix of the measurements (lidar points)
+        :return: 
+        """
+        n = points.shape[0]
+        # print(points.shape)
+        # print(sdf_normals.shape)
+        # print(sdf_residual.shape)
+        # print(point_normal_cross.shape)
+        # print(measurement_covar.shape)
+        H = np.zeros((n, 18)) #这里并不是7*18,因为选择轴角对四元数作了参数化,相当于对四元数对应的参数作error state的更新，则Eq. 279中对角度的偏导数结果同p,v一样，变成了单位阵
+        H[:,0:3] = sdf_normals #\partial{p} ni
+        H[:, 6:9] = point_normal_cross #\partial{q} pixni
+
+        PHt = self.error_covar @ H.T  # 18x6
+        # compute Kalman gain. HPH^T, project the error covariance to the measurement space.
+        K = PHt @ la.inv(H @ PHt + measurement_covar)  # 18x6
+        
+        # compute Kalman gain. HPH^T, project the error covariance to the measurement space.
+        # using Eq.20 of fast-lio
+        # Rinv = np.linalg.inv(measurement_covar)
+        # LASER_POINT_COV = 0.00015
+        # K = la.inv(H.T @ H + la.inv(self.error_covar/LASER_POINT_COV)) @ H.T #18xn
+
+        # update error covariance matrix
+        self.error_covar = (np.eye(18) - K @ H) @ self.error_covar
+        # force the error_covar to be a symmetrical matrix
+        self.error_covar = 0.5 * (self.error_covar + self.error_covar.T)
+
+        # compute the measurements according to the nominal state and ground-truth state.
+        # if gt_measurement[3] < 0:
+        #     gt_measurement[3:7] *= -1
+        # gt_p = gt_measurement[0:3]
+        # gt_q = gt_measurement[3:7]
+        q = self.nominal_state[6:10]
+
+        # compute state errors.
+        errors = K @ sdf_residual #18x18x18x1->18x1
+
+        # print(errors.shape)
+
+        # inject errors to the nominal state
+        self.nominal_state[0:3] += errors[0:3]  # update position
+        dq = tr.quaternion_about_axis(la.norm(errors[6:9]), errors[6:9])
+        # print(dq)
+        self.nominal_state[6:10] = tr.quaternion_multiply(q, dq)  # update rotation
+        self.nominal_state[6:10] /= la.norm(self.nominal_state[6:10])
+        if self.nominal_state[6] < 0:
+            self.nominal_state[6:10] *= -1
+        self.nominal_state[3:6] += errors[3:6]
+        self.nominal_state[10:] += errors[9:]  # update the rest.
+        
+        # for pin-slam usage
+        self.delta_T = np.eye(4)
+        self.delta_T[:3,:3] = tr.quaternion_matrix(dq)[:3,:3]
+        self.delta_T[:3, 3] = errors[0:3]
+        """
+        reset errors to zero and modify the error covariance matrix.
+        we do nothing to the errors since we do not save them.
+        but we need to modify the error_covar according to P = GPG^T
+        """
+        G = np.eye(18)
+        G[6:9, 6:9] = np.eye(3) - tr.skew_matrix(0.5 * errors[6:9])
         self.error_covar = G @ self.error_covar @ G.T
 
     def __predict_nominal_state(self, imu_measurement: np.array):

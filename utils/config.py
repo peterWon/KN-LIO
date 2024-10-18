@@ -298,6 +298,8 @@ class Config:
         self.republish_raw_input: bool = False # publish the raw input point cloud or not
         self.timeout_duration_s: int = 30 # in seconds, exit after receiving no topic for x seconds 
 
+        self.calibration = None
+
 
     def load(self, config_file):
         config_args = yaml.safe_load(open(os.path.abspath(config_file)))
@@ -356,6 +358,9 @@ class Config:
             self.deskew = config_args["setting"].get("deskew", self.deskew) # apply motion undistortion or not
             if self.step_frame > 1:
                 self.deskew = False
+        
+        if "calibration" in config_args:
+            self.calibration = config_args["calibration"]
 
         # process
         if "process" in config_args:

@@ -8,6 +8,7 @@ import sys
 import matplotlib.cm as cm
 import numpy as np
 import open3d as o3d
+import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -144,6 +145,29 @@ class NeuralPoints(nn.Module):
 
     def local_count(self):
         return self.local_neural_points.shape[0]
+    
+    def assign_color_to_points(self, image, T_cw, K, w, h):
+        # print(self.local_neural_points.shape)
+        T1 = get_time()
+        points_cam = (self.local_neural_points @ T_cw[:3,:3].T) + T_cw[:3, 3]
+        uv = points_cam @ K.T
+        uv[:,0] = uv[:,0]/uv[:, 2]
+        uv[:,1] = uv[:,1]/uv[:, 2]
+        
+        # local neural points in camera view
+        mask = torch.where((uv[:, 0] < w).bool() & (uv[:, 0] >= 0).bool() & (uv[:, 1] < h).bool() & (uv[:, 1] >= 0).bool())
+        
+        # local neural points whose features are not assigned yet
+
+        # assign the RGB features from image
+
+        uv = uv[mask]
+        T2 = get_time()
+        # print(uv.shape, (T2-T1)*1e3) ~4.5ms
+
+
+
+
 
     def print_memory(self):
         if not self.silence:

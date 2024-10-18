@@ -95,6 +95,15 @@ class Mapper:
         self.weight_pool = torch.empty((0), device=self.device, dtype=self.dtype)
         self.time_pool = torch.empty((0), device=self.device, dtype=torch.int)
 
+        self.T_IL = dataset.loader.T_IL
+        self.T_LI = np.linalg.inv(self.T_IL)
+
+        self.T_IC = dataset.loader.T_IC
+        self.T_CI = np.linalg.inv(self.T_IC)
+        self.K = dataset.loader.K
+        self.width = dataset.loader.width
+        self.height = dataset.loader.height
+
     def dynamic_filter(self, points_torch, type_2_on: bool = True):
 
         if type_2_on:
@@ -156,6 +165,16 @@ class Mapper:
                 device=self.device, 
                 dtype=torch.float64
             )
+
+    def process_image(self, image, image_ts, T_wi):
+        T_cw = np.linalg.inv(T_wi @ self.T_IC)
+        T_cw = torch.tensor(T_cw, device=self.device, dtype=self.config.dtype)
+        K = torch.tensor(self.K, device=self.device, dtype=self.config.dtype)
+        self.neural_points.assign_color_to_points(image_data, T_cw, K, self.width, self.height)
+
+        # local map bundle adjustment.
+
+        # synchronize local to global.
 
     def process_frame(
         self,

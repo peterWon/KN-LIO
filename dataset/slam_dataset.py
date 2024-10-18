@@ -60,7 +60,8 @@ class SLAMDataset(Dataset):
                 sequence=config.data_loader_seq,
                 lidar_topic=config.lidar_topic,
                 imu_topic=config.imu_topic,
-                camera_topic=config.camera_topic
+                camera_topic=config.camera_topic,
+                calibration=config.calibration
             )
            
             config.end_frame = len(self.loader)
@@ -213,6 +214,7 @@ class SLAMDataset(Dataset):
                 self.cur_point_cloud_torch[:, :3], train_voxel_m
             )
         self.cur_point_cloud_torch = self.cur_point_cloud_torch[idx]
+        
         if self.cur_point_ts_torch is not None:
             self.cur_point_ts_torch = self.cur_point_ts_torch[idx]
         if self.cur_sem_labels_torch is not None:
@@ -256,9 +258,9 @@ class SLAMDataset(Dataset):
 
             if self.cur_point_ts_torch is not None:
                 cur_ts = self.cur_point_ts_torch.clone()
-                cur_source_ts = cur_ts[idx]
+                self.cur_point_ts_torch = cur_ts[idx]
             else:
-                cur_source_ts = None
+                self.cur_point_ts_torch = None
 
             # deskewing (motion undistortion) for source point cloud
             # if self.config.deskew and not self.lose_track:
