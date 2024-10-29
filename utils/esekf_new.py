@@ -44,6 +44,8 @@ class ESEKF(object):
         Qi[6:9,6:9] = Ai
         Qi[9:12,9:12] = Omegai
         self.error_covar = Fi @ Qi @ Fi.T
+        self.error_covar[15:18, 15:18] = 1e-6
+        self.error_covar[0:3, 0:3] = 1e-6
 
         self.last_predict_time = 0.0
         
@@ -272,5 +274,7 @@ class ESEKF(object):
         Qi[9:12,9:12] = Omegai
         
         # propagate时，error_state为零向量，Eq.268
-        self.error_covar = Fx @ self.error_covar @ Fx.T + Fi @ Qi @ Fi.T 
+        self.error_covar = Fx @ self.error_covar @ Fx.T + Fi @ Qi @ Fi.T
+
+        # self.error_covar[15:18, 15:18] = 1e-6
 
