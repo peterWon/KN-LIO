@@ -52,10 +52,10 @@ class Tracker:
         
         # extrinsics and intrinsics
         self.imu_paras = ImuParameters() 
-        self.imu_paras.sigma_a_n = dataset.loader.accel_std
-        self.imu_paras.sigma_a_b = dataset.loader.accel_rw
-        self.imu_paras.sigma_w_n = dataset.loader.gyro_std
-        self.imu_paras.sigma_w_b = dataset.loader.gyro_rw
+        self.imu_paras.sigma_a_n = dataset.loader.accel_std * 10
+        self.imu_paras.sigma_a_b = dataset.loader.accel_rw * 10
+        self.imu_paras.sigma_w_n = dataset.loader.gyro_std * 10
+        self.imu_paras.sigma_w_b = dataset.loader.gyro_rw * 10
 
         self.T_IL = dataset.loader.T_IL
         self.T_LI = np.linalg.inv(self.T_IL)
@@ -297,10 +297,6 @@ class Tracker:
             ) = reg_result
 
             T03 = get_time()
-
-            # TODO
-            Ht_Vinv_H = Ht_Vinv_H * 100
-            Ht_Vinv_r = Ht_Vinv_r * 100
 
             # eskf update
             J = np.eye(18)

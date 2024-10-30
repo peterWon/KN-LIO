@@ -343,8 +343,8 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
         elif "image" in dict_keys: # support multiple cameras
             image = frame_data["image"]
             image_ts = frame_data['image_ts']
-            tracker.process_image(image, image_ts)
-            mapper.process_image(image, image_ts)
+            # tracker.process_image(image, image_ts)
+            # mapper.process_image(image, image_ts)
         elif "imu" in dict_keys:
             imus = frame_data['imu']
             imus_ts = frame_data['imu_ts']

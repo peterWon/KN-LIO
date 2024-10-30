@@ -40,21 +40,22 @@ class ESEKF(object):
         # assume the noises (especially sigma_a_n) are isotropic so that we can precompute self.noise_covar and save it.
         self.noise_covar[0:3, 0:3] = (imu_parameters.sigma_a_n**2) * np.eye(3)
         self.noise_covar[3:6, 3:6] = (imu_parameters.sigma_w_n**2) * np.eye(3)
-        self.noise_covar[6:9, 6:9] = (imu_parameters.sigma_a_b**2) * np.eye(3)
-        self.noise_covar[9:12, 9:12] = (imu_parameters.sigma_w_b**2) * np.eye(3)
+        self.noise_covar[6:9, 6:9] = (imu_parameters.sigma_w_b**2) * np.eye(3)
+        self.noise_covar[9:12, 9:12] = (imu_parameters.sigma_a_b**2) * np.eye(3)
         
 
         Fi = np.zeros((18,12))
         Fi[3:15, :] = np.eye(12)
-        Vi = self.noise_covar[:3,:3]*0.01
-        Thetai = self.noise_covar[3:6,3:6]*0.01
-        Ai = self.noise_covar[6:9,6:9]*0.01
-        Omegai = self.noise_covar[9:12,9:12]*0.01
+        Vi = self.noise_covar[:3,:3]*0.1**2
+        Thetai = self.noise_covar[3:6,3:6]*0.1**2
+        Omegai = self.noise_covar[6:9,6:9]*0.1
+        Ai = self.noise_covar[9:12,9:12]*0.1
+        
         Qi=np.zeros((12,12))
         Qi[:3,:3] = Vi
-        Qi[3:6,3:6] = Ai
-        Qi[6:9,6:9] = Thetai
-        Qi[9:12,9:12] = Omegai
+        Qi[3:6,3:6] = Thetai
+        Qi[6:9,6:9] = Omegai
+        Qi[9:12,9:12] =  Ai
         self.error_covar = Fi @ Qi @ Fi.T
 
         self.last_predict_time = -1.
@@ -221,16 +222,16 @@ class ESEKF(object):
 
         Fi = np.zeros((18,12))
         Fi[3:15, :] = np.eye(12)
-
         Vi = self.noise_covar[:3,:3]*dt*dt
         Thetai = self.noise_covar[3:6,3:6]*dt*dt
-        Ai = self.noise_covar[6:9,6:9]*dt
-        Omegai = self.noise_covar[9:12,9:12]*dt
+        Omegai = self.noise_covar[6:9,6:9]*dt
+        Ai = self.noise_covar[9:12,9:12]*dt
+        
         Qi=np.zeros((12,12))
         Qi[:3,:3] = Vi
-        Qi[3:6,3:6] = Ai
-        Qi[6:9,6:9] = Thetai
-        Qi[9:12,9:12] = Omegai
+        Qi[3:6,3:6] = Thetai
+        Qi[6:9,6:9] = Omegai
+        Qi[9:12,9:12] =  Ai
         
         # propagate时，error_state为零向量，Eq.268
         self.error_covar = Fx @ self.error_covar @ Fx.T + Fi @ Qi @ Fi.T 
