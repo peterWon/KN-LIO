@@ -246,8 +246,8 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                 T6=get_time()
                 # print('Mapping time: ', (T6-T5)*1e3)
 
-            if config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0:
-                print('Processed {} frames'.format(frame_id+1))
+            if (config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0) or frame_id==last_frame:
+                # print('Processed {} frames'.format(frame_id+1))
                 dataset.write_results_log()
             
             # V: Mesh reconstruction and visualization
@@ -322,7 +322,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                     if cur_mesh is not None:
                         rr.log("world/mesh_map", rr.Mesh3D(vertex_positions=cur_mesh.vertices, triangle_indices=cur_mesh.triangles, vertex_normals=cur_mesh.vertex_normals, vertex_colors=cur_mesh.vertex_colors))
              
-            if config.save_mesh and (frame_id+1) % config.log_freq_frame == 0:
+            if (config.save_mesh and (frame_id+1) % config.log_freq_frame == 0) or frame_id == last_frame:
                 # neural_points.prune_map(config.max_prune_certainty, 0, True) # prune uncertain points for the final output    
                 # neural_points.recreate_hash(None, None, False, False) # merge the final neural point map 
 

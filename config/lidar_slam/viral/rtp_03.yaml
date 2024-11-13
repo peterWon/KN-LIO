@@ -2,12 +2,12 @@ setting:
   name: "test_viral"
   use_dataloader: True
   data_loader_name: 'viral'
-  data_loader_seq: 'eee_01'
+  data_loader_seq: 'rtp_03'
   lidar_topic: '/os1_cloud_node1/points'
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
   output_root: "./experiments"
-  pc_path: "/data0/dataset/VIRAL/eee_01/eee_01.bag"
+  pc_path: "/data0/dataset/VIRAL/rtp_03/rtp_03.bag"
   pose_path: ""
   calib_path: ""
   kitti_correct: False
@@ -81,7 +81,7 @@ eval:
   o3d_vis_on: False # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ./cad/kitti_car.ply
-  mesh_freq_frame: 50 # reconstruct the mesh every x frames
+  mesh_freq_frame: 500 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False

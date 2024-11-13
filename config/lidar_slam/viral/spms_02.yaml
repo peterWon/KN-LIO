@@ -1,0 +1,89 @@
+setting:
+  name: "test_viral"
+  use_dataloader: True
+  data_loader_name: 'viral'
+  data_loader_seq: 'spms_02'
+  lidar_topic: '/os1_cloud_node1/points'
+  camera_topic: '/left/image_raw'
+  imu_topic: '/imu/imu'
+  output_root: "./experiments"
+  pc_path: "/data0/dataset/VIRAL/spms_02/spms_02.bag"
+  pose_path: ""
+  calib_path: ""
+  kitti_correct: False
+  correct_deg: 0
+calibration:
+  accel_std: 0.0365432018302
+  accel_rw: 0.000433
+  gyro_std: 0.00367396706572
+  gyro_rw: 2.66e-05
+  T_imu_hlidar: [ 1.0,  0.0,  0.0, -0.050,
+           0.0,  1.0,  0.0,  0.000,
+           0.0,  0.0,  1.0,  0.055,
+           0.0,  0.0,  0.0,  1.000 ]
+  T_imu_camera: [ 0.02183084, -0.01312053,  0.99967558,  0.00552943,
+           0.99975965,  0.00230088, -0.02180248, -0.12431302,
+          -0.00201407,  0.99991127,  0.01316761,  0.01614686,
+           0.00000000,  0.00000000,  0.00000000,  1.00000000 ]
+  fx: 4.250258563372763e+02
+  fy: 4.267976260903337e+02
+  cx: 3.860151866550880e+02
+  cy: 2.419130336743440e+02
+  width: 752
+  height: 480
+  distorted: True
+  k1: -0.288105327549552
+  k2: 0.074578284234601
+  p1: 7.784489598138802e-04
+  p2: -2.277853975035461e-04
+process:
+  min_range_m: 3.0
+  max_range_m: 80.0
+  vox_down_m: 0.08
+  min_z_m: -3.5
+sampler:
+  surface_sample_range_m: 0.25 
+  surface_sample_n: 4
+  free_sample_begin_ratio: 0.3
+  free_sample_end_dist_m: 1.0
+  free_front_sample_n: 2
+neuralpoints:
+  voxel_size_m: 0.4
+  feature_dim: 8 
+  query_nn_k: 6
+  search_alpha: 0.2
+  weighted_first: False
+decoder:
+  freeze_after_frame: 40
+  # mlp_hidden_dim: 32
+  # mlp_level: 1
+loss:
+  main_loss_type: bce
+  sigma_sigmoid_m: 0.08
+  loss_weight_on: True
+  dist_weight_scale: 0.8
+  ekional_loss_on: True
+  weight_e: 0.5
+continual:
+  batch_size_new_sample: 1000
+  pool_capacity: 2e7
+tracker:
+  source_vox_down_m: 0.6
+  iter_n: 100
+  GM_grad: 0.1 
+  GM_dist: 0.2 
+pgo:
+  pgo_freq_frame: 20
+  context_cosdist: 0.3
+optimizer: # mapper
+  batch_size: 16384     
+eval:
+  o3d_vis_on: False # visualize the mapping or not
+  silence_log: True # output the logs or not
+  sensor_cad_path: ./cad/kitti_car.ply
+  mesh_freq_frame: 500 # reconstruct the mesh every x frames
+  mesh_min_nn: 9
+  save_mesh: True
+  save_map: False
+  save_merged_pc: False
+  log_freq_frame: 50

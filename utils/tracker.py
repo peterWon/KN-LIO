@@ -201,7 +201,7 @@ class Tracker:
             
             self.last_lidar_pose = T_WL_updated
             self.last_imu_pose = T_WI_opt
-            print(T_WI_opt[:3,3])
+            # print(T_WI_opt[:3,3])
             return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
         
 
