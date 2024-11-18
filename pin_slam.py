@@ -175,10 +175,13 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     initialized_dataset = False
     while True:
         frame_data = dataset.read_next_datastream()
-        if not frame_data:
+        if frame_data is None:
             dataset.write_results_log()
+            print('DONE!')
             break
-        
+
+        if len(frame_data) == 0: continue
+
         # I. Load data and preprocessing
         dict_keys = list(frame_data.keys())
         if "points" in dict_keys: # TODO: support multiple LiDAR

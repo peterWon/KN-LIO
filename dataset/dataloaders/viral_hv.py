@@ -24,7 +24,7 @@
 import glob
 import os
 import sys
-# sys.path.insert(0, '/home/wz/GS_ws/PIN_SLAM/')
+sys.path.insert(0, '/home/wangzhong/pin-lio/')
 import struct
 import numpy as np
 from pathlib import Path
@@ -58,13 +58,24 @@ class ViralDataset:
         self.bag.open()
 
         # self.topic = self.check_topic(topic)
-        self.lidar_topic = lidar_topics['master_lidar']
+        # Default Main Lidar: lidar_topic_a 
+        self.lidar_topic_h = lidar_topics['master_lidar']
+        self.lidar_topic_v = lidar_topics['slave_lidar']
         self.imu_topic = imu_topic
         self.camera_topic = camera_topic
+        self.parse_calibratin(calibration)
 
-        self.n_scans = self.bag.topics[self.lidar_topic].msgcount
+        self.n_scans_h = self.bag.topics[self.lidar_topic_h].msgcount
+        self.n_scans_v = self.bag.topics[self.lidar_topic_v].msgcount
+        self.n_scans=self.n_scans_h
+
         self.n_images = self.bag.topics[self.camera_topic].msgcount
         self.n_imus = self.bag.topics[self.imu_topic].msgcount
+
+        self.last_vlidar_points = None
+        self.last_vlidar_points_ts = None
+        self.last_vlidar_frame_ts = None
+
 
         # # limit connections to selected topic
         # lidar_connections = [x for x in self.bag.connections if x.topic == self.lidar_topic]
@@ -74,11 +85,14 @@ class ViralDataset:
         # self.camera_msgs = self.bag.messages(connections=camera_connections)
         # self.imu_msgs = self.bag.messages(connections=imu_connections)
 
-        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.camera_topic, self.imu_topic]]
+        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic_h, self.lidar_topic_v, self.camera_topic, self.imu_topic]]
         self.msgs = self.bag.messages(connections=connections)
-        self.pointcloud_timestamps = []
+        self.pointcloud_timestamps = [] #main lidar
         self.image_timestamps = []
     
+        
+    
+    def parse_calibratin(self, calibration):
         # imu parameters
         self.accel_std = calibration['accel_std']
         self.accel_rw = calibration['accel_rw']
@@ -86,7 +100,10 @@ class ViralDataset:
         self.gyro_rw = calibration['gyro_rw']
 
         # lidar parameters
-        self.T_IL = np.array(calibration['T_imu_hlidar']).reshape(4,4)
+        self.T_ILh = np.array(calibration['T_imu_hlidar']).reshape(4,4)
+        self.T_ILv = np.array(calibration['T_imu_vlidar']).reshape(4,4)
+        self.T_hv = np.linalg.inv(self.T_ILh) @ self.T_ILv
+        self.T_IL = self.T_ILh
 
         # camera parameters
         self.T_IC = np.array(calibration['T_imu_camera']).reshape(4,4)
@@ -121,18 +138,19 @@ class ViralDataset:
             cv2.CV_32FC1,
         )
 
-        # # depth parameters
-        # self.has_depth = True if "depth_scale" in calibration.keys() else False
-        # self.depth_scale = calibration["depth_scale"] if self.has_depth else None
+        # depth parameters
+        self.has_depth = True if "depth_scale" in calibration.keys() else False
+        self.depth_scale = calibration["depth_scale"] if self.has_depth else None
 
-        # # Default scene scale
-        # nerf_normalization_radius = 5
-        # self.scene_info = {
-        #     "nerf_normalization": {
-        #         "radius": nerf_normalization_radius,
-        #         "translation": np.zeros(3),
-        #     },
-        # }
+        # Default scene scale
+        nerf_normalization_radius = 5
+        self.scene_info = {
+            "nerf_normalization": {
+                "radius": nerf_normalization_radius,
+                "translation": np.zeros(3),
+            },
+        }
+
     
     def focal2fov(self, focal, pixels):
         return 2 * math.atan(pixels / (2 * focal))
@@ -142,7 +160,6 @@ class ViralDataset:
             self.bag.close()
 
     def __len__(self):
-        # return self.n_scans+self.n_images+self.n_imus
         return self.n_scans
 
     def __next__(self):
@@ -151,14 +168,43 @@ class ViralDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
-            # print(min_ts, max_ts, timestamp)
-            # min_ts=0.
-            # max_ts~=0.1s
-            # timestamp is the first point?
-            point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
-            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
-            self.pointcloud_timestamps.append(timestamp)
+            if msg.header.frame_id=='sensor1/os_sensor':
+                points, point_ts, min_ts, max_ts = read_point_cloud(msg)
+                frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)}
+                 
+                if self.last_vlidar_points is not None:
+                    # transform to the main lidar frame, filter, and merge, whether to sort by timestamps
+                    points_v = self.last_vlidar_points[:,:3] @ self.T_hv[:3,:3] + self.T_hv[:3, 3]
+
+                    ts_v_start = self.last_vlidar_frame_ts - self.last_vlidar_points_ts[-1] #frame_ts is the last point's timestamp
+                    ts_v = ts_v_start + self.last_vlidar_points_ts
+
+                    ts_h_start = timestamp - point_ts[-1]
+                    ts_h = ts_h_start + point_ts
+                    mask = (ts_v > ts_h_start) & (ts_v < timestamp) 
+                    
+                    points_v = points_v[mask]
+                    ts_v = ts_v[mask]
+
+                    point_hv = np.concatenate((points, points_v))
+                    point_ts_hv = np.concatenate((ts_h, ts_v))
+                    # normalized timestamp of points to 0-1
+                    point_ts_hv = point_ts_hv - ts_h_start
+                    min_ts = np.min(point_ts_hv)
+                    max_ts = np.max(point_ts_hv)
+                    point_ts_normalized = (point_ts_hv - min_ts) / (max_ts - min_ts)
+
+                    # print(points.shape, point_hv.shape)
+                    frame_data = {"points": point_hv, "point_ts": point_ts_normalized, "frame_ts": self.to_sec(timestamp)} 
+                self.pointcloud_timestamps.append(timestamp)
+            elif msg.header.frame_id=='sensor2/os_sensor':
+                # cache it and wait for next main lidar data
+                # print("================")
+                self.last_vlidar_points, self.last_vlidar_points_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
+                self.last_vlidar_frame_ts = timestamp
+                frame_data = {}
+            else:
+                raise RuntimeError("Not supported message! Filter it!")
         elif connection.msgtype=='sensor_msgs/msg/Image':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
             image = message_to_cvimage(msg, 'mono8')
@@ -231,30 +277,36 @@ class ViralDataset:
 
 
 if __name__ == '__main__':
-    viral = ViralDataset(data_dir=Path('/data0/dataset/VIRAL/eee_03/eee_03.bag'), lidar_topic='/os1_cloud_node1/points',imu_topic='/imu/imu', camera_topic='/left/image_raw')
+    viral = ViralDataset(data_dir=Path('/home/wangzhong/mydata/VIRAL//eee_03/eee_03.bag'), lidar_topics={'/os1_cloud_node1/points', '/os1_cloud_node2/points'},imu_topic='/imu/imu', camera_topic='/left/image_raw',calibration={})
     while 1:
         connection, timestamp, rawdata = next(viral.msgs)
         
         msg = viral.bag.deserialize(rawdata, connection.msgtype)
+        
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts = read_point_cloud(msg)
-            frame_data = {"points": points, "pointcload_ts": point_ts}
-        elif connection.msgtype=='sensor_msgs/msg/Image':
-            img = message_to_cvimage(msg, 'mono8') #https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            frame_data = {"image": img, "image_ts": timestamp}
-            # print(img.shape)
-        elif connection.msgtype=='sensor_msgs/msg/Imu':
-            # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Imu.html
-            orientation_x = msg.orientation.x
-            orientation_y = msg.orientation.y
-            orientation_z = msg.orientation.z
-            orientation_w = msg.orientation.w
-            linear_acc_x = msg.linear_acceleration.x
-            linear_acc_y = msg.linear_acceleration.y
-            linear_acc_z = msg.linear_acceleration.z
-            ang_vel_x = msg.angular_velocity.x
-            ang_vel_y = msg.angular_velocity.y
-            ang_vel_z = msg.angular_velocity.z
-            reading = [linear_acc_x, linear_acc_y, linear_acc_z, ang_vel_x, ang_vel_y, ang_vel_z]
-            frame_data = {"imu": reading, "imu_ts": timestamp}
-            print(frame_data)
+            # if msg.header.frame_id=='sensor1/os_sensor':
+            # elif msg.header.frame_id=='sensor2/os_sensor':
+            # else:
+            #     raise RuntimeError
+            pass
+            # points, point_ts = read_point_cloud(msg)
+            # frame_data = {"points": points, "pointcload_ts": point_ts}
+        # elif connection.msgtype=='sensor_msgs/msg/Image':
+        #     img = message_to_cvimage(msg, 'mono8') #https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
+        #     frame_data = {"image": img, "image_ts": timestamp}
+        #     # print(img.shape)
+        # elif connection.msgtype=='sensor_msgs/msg/Imu':
+        #     # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Imu.html
+        #     orientation_x = msg.orientation.x
+        #     orientation_y = msg.orientation.y
+        #     orientation_z = msg.orientation.z
+        #     orientation_w = msg.orientation.w
+        #     linear_acc_x = msg.linear_acceleration.x
+        #     linear_acc_y = msg.linear_acceleration.y
+        #     linear_acc_z = msg.linear_acceleration.z
+        #     ang_vel_x = msg.angular_velocity.x
+        #     ang_vel_y = msg.angular_velocity.y
+        #     ang_vel_z = msg.angular_velocity.z
+        #     reading = [linear_acc_x, linear_acc_y, linear_acc_z, ang_vel_x, ang_vel_y, ang_vel_z]
+        #     frame_data = {"imu": reading, "imu_ts": timestamp}
+        #     print(frame_data)

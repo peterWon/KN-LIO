@@ -3,7 +3,9 @@ setting:
   use_dataloader: True
   data_loader_name: 'viral'
   data_loader_seq: 'tnp_03'
-  lidar_topic: '/os1_cloud_node1/points'
+  lidar_topics: 
+    master_lidar: '/os1_cloud_node1/points'
+    slave_lidar: '/os1_cloud_node2/points'
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
   output_root: "./experiments"
@@ -20,6 +22,10 @@ calibration:
   T_imu_hlidar: [ 1.0,  0.0,  0.0, -0.050,
            0.0,  1.0,  0.0,  0.000,
            0.0,  0.0,  1.0,  0.055,
+           0.0,  0.0,  0.0,  1.000 ]
+  T_imu_vlidar: [ -1.0,  0.0,  0.0, -0.550,
+           0.0,  0.0,  1.0,  0.030,
+           0.0,  1.0,  0.0,  0.050,
            0.0,  0.0,  0.0,  1.000 ]
   T_imu_camera: [ 0.02183084, -0.01312053,  0.99967558,  0.00552943,
            0.99975965,  0.00230088, -0.02180248, -0.12431302,

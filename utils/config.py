@@ -28,7 +28,7 @@ class Config:
         self.use_dataloader: bool = False # use the dataloader providied by kiss-icp or not
         self.data_loader_name: str = "generic"
         self.data_loader_seq: str = ""
-        self.lidar_topic: str = ""
+        self.lidar_topics: dict = {}
         self.imu_topic: str = ""
         self.camera_topic: str = ""
 
@@ -313,9 +313,10 @@ class Config:
             
             # add by wz
             self.data_loader_seq = config_args["setting"].get("data_loader_seq", '00')
-            self.lidar_topic = config_args["setting"].get("lidar_topic", '/point_cloud2')
-            self.imu_topic = config_args["setting"].get("imu_topic", '/point_cloud2')
-            self.camera_topic = config_args["setting"].get("camera_topic", '/point_cloud2')
+            self.lidar_topics = config_args["setting"].get("lidar_topics", {})
+            print(self.lidar_topics)
+            self.imu_topic = config_args["setting"].get("imu_topic", '/imu')
+            self.camera_topic = config_args["setting"].get("camera_topic", '/image')
 
             # print(self.use_dataloader, self.data_loader_name)
             # print(self.data_loader_seq, self.data_loader_topic)

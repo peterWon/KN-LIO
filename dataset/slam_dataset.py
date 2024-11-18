@@ -54,11 +54,12 @@ class SLAMDataset(Dataset):
         self.loader = None
         
         if config.use_dataloader: 
+            # print(config.data_loader_name)
             self.loader = dataset_factory(
                 dataloader=config.data_loader_name, # a specific dataset or data format
                 data_dir=Path(config.pc_path),
                 sequence=config.data_loader_seq,
-                lidar_topic=config.lidar_topic,
+                lidar_topics=config.lidar_topics,
                 imu_topic=config.imu_topic,
                 camera_topic=config.camera_topic,
                 calibration=config.calibration
@@ -145,6 +146,8 @@ class SLAMDataset(Dataset):
 
     
     def read_next_datastream(self):
+        # frame_data = self.loader.__next__()
+        # return frame_data
         try:
             frame_data = self.loader.__next__()
             return frame_data
