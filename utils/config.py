@@ -349,6 +349,8 @@ class Config:
             self.seed = config_args["setting"].get("random_seed", self.seed)
             self.device = config_args["setting"].get("device", "cuda") # or cpu, on cpu it's about 5 times slower 
             self.gpu_id = config_args["setting"].get("gpu_id", "0")
+            if self.device == 'cuda':
+                self.device = 'cuda:'+str(self.gpu_id)
 
             self.kitti_correction_on = config_args["setting"].get("kitti_correct", self.kitti_correction_on)
             if self.kitti_correction_on:

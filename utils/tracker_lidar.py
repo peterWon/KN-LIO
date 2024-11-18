@@ -53,10 +53,10 @@ class Tracker:
         
         # extrinsics and intrinsics
         self.imu_paras = ImuParameters() 
-        self.imu_paras.sigma_a_n = dataset.loader.accel_std
-        self.imu_paras.sigma_a_b = dataset.loader.accel_rw
-        self.imu_paras.sigma_w_n = dataset.loader.gyro_std
-        self.imu_paras.sigma_w_b = dataset.loader.gyro_rw
+        self.imu_paras.sigma_a_n = dataset.loader.accel_std * 10
+        self.imu_paras.sigma_a_b = dataset.loader.accel_rw * 10
+        self.imu_paras.sigma_w_n = dataset.loader.gyro_std * 10
+        self.imu_paras.sigma_w_b = dataset.loader.gyro_rw * 10
 
         self.T_IL = dataset.loader.T_IL
         self.T_LI = np.linalg.inv(self.T_IL)
@@ -71,8 +71,7 @@ class Tracker:
         self.initialized = False
         self.imu_queue = deque()
         self.cached_lidar_frames = 0
-        # self.gravity = np.array([0, 0, -9.805])
-        self.gravity = np.array([0, 0, -9.781]) #https://jxzy.ustc.edu.cn/jxzy/teacher/jiangyi/file/2021/3/18150101.pdf
+        self.gravity = np.array([0, 0, -9.805])
         self.imu_gyro_bias = []
         self.imu_acc_bias = []
         self.initial_pose = None # imu in world
@@ -160,84 +159,60 @@ class Tracker:
         return T_WI_ns
 
     def process_point_cloud(self, frame_ts, source_points, points_timestamps, source_colors, source_normals, cur_pose_guess_torch):
-        # if not self.initialized:
-        #     self.initialized = True
-        #     return torch.tensor(torch.eye(4), device = self.device), None, None, True
-        # else:
-        #     T_WL, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points, cur_pose_guess_torch, source_colors, source_normals)# torch.tensor(T_WL_ns, device=self.device)
-        #     return T_WL, cov_mat, weight_point_cloud, valid_flag
+        if not self.initialized:
+            self.initialized = True
+            return torch.tensor(torch.eye(4), device = self.device), None, None, True
+        else:
+            T_WL, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points, cur_pose_guess_torch, source_colors, source_normals)# torch.tensor(T_WL_ns, device=self.device)
+            return T_WL, cov_mat, weight_point_cloud, valid_flag
 
         # ouster lidar记录的timestamp为最后一个点的时间
         # print(frame_ts-self.imu_queue[0][0], frame_ts-self.imu_queue[-1][0])
         # imu logic
-        if not self.initialized:
-            # if self.cached_lidar_frames < 3:
-            #     self.cached_lidar_frames += 1
-            #     return None, None, None, None
+        # if not self.initialized:
+        #     # if self.cached_lidar_frames < 3:
+        #     #     self.cached_lidar_frames += 1
+        #     #     return None, None, None, None
 
-            T_WI = self.initialize(frame_ts)
+        #     T_WI = self.initialize(frame_ts)
             
-            T_WL = T_WI @ self.T_IL
-            self.last_lidar_pose = T_WL
-            self.last_imu_pose = T_WI
+        #     T_WL = T_WI @ self.T_IL
+        #     self.last_lidar_pose = T_WL
+        #     self.last_imu_pose = T_WI
             
-            # print('Initial lidar pose: ', T_WL)
-            return torch.tensor(T_WL, device=self.device), None, None, True # return lidar pose in world frame
+        #     # print('Initial lidar pose: ', T_WL)
+        #     return torch.tensor(T_WL, device=self.device), None, None, True # return lidar pose in world frame
         
-        # propagate current state
-        while True:
-            if len(self.imu_queue) == 0:
-                break
-            if self.imu_queue[0][0] > frame_ts:
-                break
-            else:
-                imu = self.imu_queue.popleft()
-                self.eskf.predict(imu_measurement=imu)
+        # # propagate current state
+        # while True:
+        #     if len(self.imu_queue) == 0:
+        #         break
+        #     if self.imu_queue[0][0] > frame_ts:
+        #         break
+        #     else:
+        #         imu = self.imu_queue.popleft()
+        #         self.eskf.predict(imu_measurement=imu)
 
-        # get predicted pose
-        T_WI_ns = self.get_current_eskf_state()
-        T_WL_ns = T_WI_ns @ self.T_IL
-        # print(T_WI_ns)
+        # # get predicted pose
+        # T_WI_ns = self.get_current_eskf_state()
+        # T_WL_ns = T_WI_ns @ self.T_IL
 
-        # deskewing first
-        if self.last_lidar_pose is not None and self.deskew:
-            # print('deskewing...')为啥去畸变到中间点效果比末点更好呢
-            relative_pose = np.linalg.inv(self.last_lidar_pose) @ T_WL_ns
-            # relative_pose = np.linalg.inv(T_WL_ns) @ self.last_lidar_pose #transform to current pose
-            source_points = deskewing(source_points, points_timestamps, torch.tensor(relative_pose, device=self.device))
+        # # deskewing first
+        # if self.last_lidar_pose is not None and self.deskew:
+        #     # print('deskewing...')为啥去畸变到中间点效果比末点更好呢
+        #     relative_pose = np.linalg.inv(self.last_lidar_pose) @ T_WL_ns
+        #     # relative_pose = np.linalg.inv(T_WL_ns) @ self.last_lidar_pose #transform to current pose
+        #     source_points = deskewing(source_points, points_timestamps, torch.tensor(relative_pose, device=self.device))
         
         
-        # print(self.eskf.error_covar)
-        # print(T_WI_ns, source_points.shape)
-        source_points_I = transform_torch(source_points, torch.tensor(self.T_IL, device=self.device, dtype=self.dtype))
-        T_WI_opt, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points_I, torch.tensor(T_WI_ns, device=self.device), source_colors, source_normals)# 
-    
-        if not valid_flag:
-            print("Tracking Error")
-            return T_WL, cov_mat, weight_point_cloud, valid_flag
-        else:
-            # sigma_measurement_p = 0.002   # in meters
-            # sigma_measurement_q = 0.001  # in rad
-            # sigma_measurement = np.eye(6)
-            # sigma_measurement[0:3, 0:3] *= sigma_measurement_p**2
-            # sigma_measurement[3:6, 3:6] *= sigma_measurement_q**2
-            # T_WI = T_WL_opt.cpu().numpy() @ np.linalg.inv(self.T_IL)
-            # q = tr.quaternion_from_matrix(T_WI[:3,:3])
-            # pq =  T_WI[:3, 3].tolist() + q.tolist()
-            # self.eskf.update_with_pose(pq, sigma_measurement)
-            
-            # get updated pose
-            T_WI_opt = T_WI_opt.cpu().numpy()
-            T_WL_updated = T_WI_opt @ self.T_IL
-            
-            self.last_lidar_pose = T_WL_updated
-            self.last_imu_pose = T_WI_opt
-            print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
-            return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
-        
+        # # print(self.eskf.error_covar)
+        # # print(T_WI_ns, source_points.shape)
+        # # source_points_I = transform_torch(source_points, torch.tensor(self.T_IL, device=self.device, dtype=self.dtype))
+        # T_WI_opt, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points_I, torch.tensor(T_WI_ns, device=self.device), source_colors, source_normals)# 
+        # return T_WI_opt, cov_mat, weight_point_cloud, valid_flag
+
 
     # already under the scaled coordinate system
-    # origininally called tracking
     def tracking(
         self,
         source_points,
@@ -294,18 +269,17 @@ class Tracker:
 
         if source_sdf is None:  # only use the surface samples (all zero)
             source_sdf = torch.zeros(source_point_count, device=self.device)
-        
-        R_start = self.eskf.state.R
+
         for i in tqdm(range(iter_n), disable=self.silence):
 
             T01 = get_time()
 
-            # cur_points = transform_torch(source_points, T)  # apply transformation
+            cur_points = transform_torch(source_points, T)  # apply transformation
 
             T02 = get_time()
 
             reg_result = self.registration_step(
-                source_points,#wz
+                cur_points,
                 source_normals,
                 source_sdf,
                 source_colors,
@@ -317,48 +291,19 @@ class Tracker:
                 (vis_result and converged),
             )
 
-            (   cov_mat,
+            (
+                delta_T,
+                cov_mat,
                 eigenvalues,
                 weight_point_cloud,
                 valid_points_torch,
                 sdf_residual_cm,
                 photo_residual,
-                Ht_Vinv_H, 
-                Ht_Vinv_r
             ) = reg_result
 
             T03 = get_time()
 
-            # eskf update
-            J = np.eye(18)
-            delta_R = self.eskf.state.R.T @ R_start
-            delta_q = tr.quaternion_from_matrix(delta_R)
-            if delta_q[0] < 0:
-                delta_q *= -1
-            angle = math.asin(np.linalg.norm(delta_q[1:4]))
-            if math.isclose(angle, 0):
-                axis = np.zeros(3,)
-            else:
-                axis = delta_q[1:4] / np.linalg.norm(delta_q[1:4])
-            J[6:9, 6:9] = np.eye(3) - tr.skew_matrix(0.5 * angle * axis)
-            Pk = J @ self.eskf.error_covar @ J.T
-            P_inv = np.linalg.inv(Pk + np.eye(18) * 1e-6) #TODO
-            Qk = np.linalg.inv(P_inv + Ht_Vinv_H.cpu().numpy())
-            dx = Qk @ Ht_Vinv_r.cpu().numpy()
-            dx = dx.reshape((18,1))
-
-            self.eskf.state.P += dx[0:3, 0]  # update position
-            self.eskf.state.V += dx[3:6, 0]
-
-            dR = tr.rotation_matrix(np.linalg.norm(dx[6:9, 0]), dx[6:9, 0]/np.linalg.norm(dx[6:9, 0]))[:3, :3]
-            R_next = self.eskf.state.R @ dR
-            self.eskf.state.R = R_next
-            self.eskf.state.Bg += dx[9:12, 0]
-            self.eskf.state.Ba += dx[12:15, 0]
-            # self.eskf.state.G += dx[15:, 0]
-
-            # get updated pose
-            T = torch.tensor(self.get_current_eskf_state(), device=self.device, dtype=self.dtype)
+            T = delta_T @ T
 
             # the sdf residual should not increase too much during the optimization
             if (
@@ -386,11 +331,9 @@ class Tracker:
                 break
 
             rot_angle_deg = (
-                # rotation_matrix_to_axis_angle(delta_T[:3, :3]) * 180.0 / np.pi
-                np.linalg.norm(dx[6:9, 0]) * 180.0 / np.pi
+                rotation_matrix_to_axis_angle(delta_T[:3, :3]) * 180.0 / np.pi
             )
-            # tran_m = delta_T[:3, 3].norm()
-            tran_m = np.linalg.norm(dx[0:3, 0])
+            tran_m = delta_T[:3, 3].norm()
 
             if (
                 abs(rot_angle_deg) < term_thre_deg
@@ -404,14 +347,6 @@ class Tracker:
             # print("transformation time:", (T02 - T01) * 1e3)
             # print("reg time:", (T03 - T02) * 1e3)
             # print("judge time:", (T04 - T03) * 1e3)
-        
-        # update covariance at the last iteration, simplefied without jocobian
-        self.eskf.error_covar = (np.eye(18) - Qk @ Ht_Vinv_H.cpu().numpy()) @ Pk
-        J = np.eye(18)
-        J[6:9, 6:9] = np.eye(3) - tr.skew_matrix(0.5 * dx[6:9, 0])
-        self.eskf.error_covar = J @ self.eskf.error_covar @ J.T
-
-
 
         if not self.silence:
             print("# Valid source point             :", valid_point_count)
@@ -603,9 +538,6 @@ class Tracker:
     ):  # if lm_lambda = 0, then it's Gaussian Newton Optimization
 
         T0 = get_time()
-        
-        T = torch.tensor(self.get_current_eskf_state(), device=self.device, dtype=self.dtype)
-        transformed_points = transform_torch(points, T)  # apply transformation
 
         colors_on = colors is not None and self.config.color_on
         photo_loss_on = self.config.photometric_loss_on and colors_on
@@ -619,7 +551,7 @@ class Tracker:
             certainty,
             sdf_std,
         ) = self.query_source_points(
-            transformed_points,
+            points,
             self.config.infer_bs,
             True,
             True,
@@ -653,11 +585,8 @@ class Tracker:
         valid_point_count = valid_points.shape[0]
 
         if valid_point_count < 10:
-            import sys
-            sys.exit('Not enough points!')
             T = torch.eye(4, device=points.device, dtype=torch.float64)
             return T, None, None, None, valid_points, 0.0, 0.0
-        
         if vis_weight_pc:
             invalid_points = points[~valid_idx]
 
@@ -771,41 +700,15 @@ class Tracker:
             cov_mat = None
             eigenvalues = None
         else:
-            # T, cov_mat, eigenvalues = implicit_reg(
-            #     valid_points,
-            #     sdf_grad,
-            #     sdf_residual,
-            #     w,
-            #     lm_lambda=lm_lambda,
-            #     require_cov=vis_weight_pc,
-            #     require_eigen=vis_weight_pc,
-            # )  # only get metrics for the last iter
-
-            N = valid_points.shape[0]
-            R = torch.tensor(self.eskf.state.R, device=self.device, dtype=self.dtype)
-            sdf_grad_R = sdf_grad @ R 
-            cross = torch.cross(valid_points, sdf_grad_R, dim=-1)  # N,3 x N,3
-            
-            q = tr.quaternion_from_matrix(self.eskf.state.R)
-            if q[0] < 0:
-                q *= -1
-            angle_ = math.asin(np.linalg.norm(q[1:4]))
-            if math.isclose(angle_, 0):
-                axis_ = np.zeros(3,)
-            else:
-                axis_ = q[1:4] / np.linalg.norm(q[1:4])
-            RJinv = self.eskf.right_jacobian_inv(angle_*axis_)
-            RJinv = torch.tensor(RJinv, device=self.device, dtype=self.dtype)
-
-            J_mat = torch.zeros((N, 18), device=self.device, dtype=self.dtype)
-            J_mat[:, :3] = sdf_grad
-            J_mat[:, 6:9] = cross @ RJinv
-            
-            Ht_Vinv_H = J_mat.T @ (w * J_mat)
-            Ht_Vinv_r = -(J_mat * w).T @ sdf_residual
-            cov_mat=None 
-            eigenvalues=None
-
+            T, cov_mat, eigenvalues = implicit_reg(
+                valid_points,
+                sdf_grad,
+                sdf_residual,
+                w,
+                lm_lambda=lm_lambda,
+                require_cov=vis_weight_pc,
+                require_eigen=vis_weight_pc,
+            )  # only get metrics for the last iter
 
         T3 = get_time()
 
@@ -855,110 +758,19 @@ class Tracker:
         # print("time for vis             :", (T4-T3) * 1e3) # negligible
 
         return (
+            T,
             cov_mat,
             eigenvalues,
             weight_point_cloud,
             valid_points,
             sdf_residual_mean_cm,
             color_residual_mean,
-            Ht_Vinv_H, 
-            Ht_Vinv_r,
         )
 
-
-    def kth_implicit_reg(
-        self,
-        points, #已经左乘过R，即在地图坐标系下了
-        sdf_grad,
-        sdf_residual,
-        weight,
-        lm_lambda=0.0,
-        require_cov=False,
-        require_eigen=False,
-    ):
-        """
-        One step point-to-implicit model registration using LM optimization.
-
-        Args:
-            points (`torch.tensor'):
-                Current transformed source points in the coordinate system of the implicit distance field
-                with the shape of [N, 3]
-            sdf_grad (`torch.tensor'):
-                The gradient of predicted SDF
-                with the shape of [N, 3]
-            sdf_residual (`torch.tensor'):
-                SDF predictions at the positions of the points
-                with the shape of [N, 1]
-            weight (`torch.tensor'):
-                Point-wise weight for the optimization
-                with the shape of [N, 1]
-            lm_lambda: (`float`):
-                Lambda damping factor for LM optimization
-
-        Returns:
-            T_mat (`torch.tensor'):
-                4 by 4 transformation matrix of this iteration of the registration
-            cov_mat (`torch.tensor'):
-                6 by 6 covariance matrix for the registration
-            eigenvalues (`torch.tensor'):
-                3 dim translation part of the eigenvalues for the registration degerancy check
-        """
-        N = points.shape[0]
-        cross = torch.cross(points, sdf_grad, dim=-1)  # N,3 x N,3
-        J_mat = torch.zeros((N, 18), device=self.device, dtype=self.dtype)
-        J_mat[:, :3] = sdf_grad
-        J_mat[:, 6:9] = cross
-        
-        N_mat = J_mat.T @ (
-            weight * J_mat
-        )  # approximate Hessian matrix # first rot, then tran # 6, 6
-
-        if require_cov or require_eigen:
-            N_mat_raw = N_mat.clone()
-        
-        Ht_Vinv_H = torch.zeros((18,18))
-        Ht_Vinv_r = torch.zeros((18,18))
-        
-        
-
-        # use LM optimization
-        # N_mat += lm_lambda * torch.diag(torch.diag(N_mat))
-        # N += lm_lambda * 1e3 * torch.eye(6, device=points.device)
-
-        # about lambda
-        # If the lambda parameter is large, it implies that the algorithm is relying more on the gradient descent component of the optimization. This can lead to slower convergence as the steps are smaller, but it may improve stability and robustness, especially in the presence of noisy or ill-conditioned data.
-        # If the lambda parameter is small, it implies that the algorithm is relying more on the Gauss-Newton component, which can make convergence faster. However, if the problem is ill-conditioned, setting lambda too small might result in numerical instability or divergence.
-
-        g_vec = -(J_mat * weight).T @ sdf_residual
-        Ht_Vinv_r = g_vec #8.20
-
-        # t_vec = torch.linalg.inv(N_mat.to(dtype=torch.float64)) @ g_vec.to(
-        #     dtype=torch.float64
-        # )  # 6dof tran parameters
-
-        # T_mat = torch.eye(4, device=points.device, dtype=torch.float64)
-        # T_mat[:3, :3] = expmap(t_vec[:3])  # rotation part
-        # T_mat[:3, 3] = t_vec[3:]  # translation part
-
-        eigenvalues = (
-            None  # the weight are also included, we need to normalize the weight part
-        )
-        if require_eigen:
-            N_mat_raw_tran_part = N_mat_raw[3:, 3:]
-            eigenvalues = torch.linalg.eigvals(N_mat_raw_tran_part).real
-            # we need to set a threshold for the minimum eigenvalue for degerancy determination
-
-        cov_mat = None
-        if require_cov:
-            # Compute the covariance matrix (using a scaling factor)
-            mse = torch.mean(weight.squeeze(1) * sdf_residual**2)
-            cov_mat = torch.linalg.inv(N_mat_raw) * mse  # rotation , translation
-
-        return cov_mat, eigenvalues, Ht_Vinv_H, Ht_Vinv_r
 
 # function adapted from LocNDF by Louis Wiesmann
 def implicit_reg(
-    points, #已经左乘过R，即在地图坐标系下了
+    points,
     sdf_grad,
     sdf_residual,
     weight,

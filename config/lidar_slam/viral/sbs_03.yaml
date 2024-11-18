@@ -1,5 +1,7 @@
 setting:
   name: "test_viral"
+  device: "cuda"
+  gpu_id: 3
   use_dataloader: True
   data_loader_name: 'viral'
   data_loader_seq: 'sbs_03'
@@ -7,7 +9,7 @@ setting:
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
   output_root: "./experiments"
-  pc_path: "/data0/dataset/VIRAL/sbs_03/sbs_03.bag"
+  pc_path: "/home/wangzhong/mydata/VIRAL/sbs_03/sbs_03.bag"
   pose_path: ""
   calib_path: ""
   kitti_correct: False
@@ -83,7 +85,7 @@ eval:
   sensor_cad_path: ./cad/kitti_car.ply
   mesh_freq_frame: 500 # reconstruct the mesh every x frames
   mesh_min_nn: 9
-  save_mesh: True
+  save_mesh: False
   save_map: False
   save_merged_pc: False
   log_freq_frame: 50

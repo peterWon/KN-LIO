@@ -151,8 +151,12 @@ class ViralDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
-            frame_data = {"points": points, "point_ts": point_ts} 
+            points, point_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
+            # print(min_ts, max_ts, timestamp)
+            # min_ts=0.
+            # max_ts~=0.1s
+            # timestamp is the first point?
+            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
             self.pointcloud_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/Image':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads

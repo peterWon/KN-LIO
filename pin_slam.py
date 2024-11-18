@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 
-import rerun as rr
+# import rerun as rr
 import numpy as np
 import open3d as o3d
 import torch
@@ -100,10 +100,12 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
         run_path = setup_experiment(config, argv)
         print("[bold green]PIN-SLAM starts[/bold green]","📍" )
     
+    print('config.gpu_id: ', config.gpu_id)
     # non-blocking visualizer
     if config.o3d_vis_on:
         o3d_vis = MapVisualizer(config)
-
+    
+    config.rerun_vis_on = False
     if config.rerun_vis_on:
         rr.init("pin_slam_rerun_viewer", spawn=True)
 
@@ -144,9 +146,10 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     tracker = Tracker(config, neural_points, geo_mlp, sem_mlp, color_mlp, dataset)
     if config.load_model and not mapping_on: 
         tracker.reg_local_map = False
-
+        
     # mapper
     mapper = Mapper(config, dataset, neural_points, geo_mlp, sem_mlp, color_mlp)
+
 
     # mesh reconstructor
     mesher = Mesher(config, neural_points, geo_mlp, sem_mlp, color_mlp)
@@ -169,6 +172,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     # for each frame
     # frame id as the processed frame, possible skipping done in data loader
     frame_id = 0
+    initialized_dataset = False
     while True:
         frame_data = dataset.read_next_datastream()
         if not frame_data:
@@ -181,27 +185,33 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             T_lidar_start = get_time()
             points = frame_data["points"] # may also contain intensity or color
             point_ts = frame_data["point_ts"]
+            frame_ts = frame_data["frame_ts"]
             
             dataset.cur_point_cloud_torch = torch.tensor(points, device=dataset.device, dtype=dataset.dtype)
             dataset.cur_point_ts_torch = torch.tensor(point_ts, device=dataset.device, dtype=dataset.dtype)
             valid_frame = dataset.preprocess_scan(frame_id)
             if not valid_frame:
-                dataset.processed_frame += 1
-                frame_id += 1
-                continue
+                sys.exit("Not valid frame, current frameid: ", frame_id)
+                # dataset.processed_frame += 1
+                # frame_id += 1
+                # continue
 
             # II. Odometry
             # 用frame-to-model registration，直接求SDF场梯度，用LM-ICP，而不是像一般neural slam那样算loss，优化位姿           
             cur_lidar_pose_torch, _, weight_pc_o3d, valid_flag = tracker.process_point_cloud(
-                                                dataset.cur_source_points, dataset.cur_point_ts_torch,
+                                                frame_ts, dataset.cur_source_points, dataset.cur_point_ts_torch,
                                                 dataset.cur_source_colors, dataset.cur_source_normals, dataset.cur_pose_guess_torch)
             dataset.lose_track = not valid_flag
 
+            if not valid_flag:
+                continue
+
             
-            if frame_id == 0: 
-                dataset.set_initial_lidar_pose(cur_lidar_pose_torch)
+            if not initialized_dataset: 
+                dataset.set_initial_lidar_pose(frame_ts, cur_lidar_pose_torch)
+                initialized_dataset = True
             else:
-                dataset.update_odom_pose(cur_lidar_pose_torch)
+                dataset.update_odom_pose(frame_ts, cur_lidar_pose_torch)
             
             if not valid_flag and config.o3d_vis_on and o3d_vis.debug_mode > 0:
                 o3d_vis.stop()

@@ -141,6 +141,8 @@ class SLAMDataset(Dataset):
         self.cur_source_normals = None
         self.cur_source_colors = None
 
+        self.lidar_frame_timestamps = []
+
     
     def read_next_datastream(self):
         try:
@@ -152,11 +154,11 @@ class SLAMDataset(Dataset):
     # 降采样
     def preprocess_scan(self, scan_id):
         # To remove, not needed if using imu to predict the initial pose
-        if scan_id == 0:
+        if self.processed_frame == 0:
             self.cur_pose_guess_torch = torch.tensor(
                 torch.eye(4), dtype=torch.float64, device=self.device
             )   
-        if scan_id > 0:
+        if self.processed_frame > 0:
             # pose initial guess
             # last_translation = np.linalg.norm(self.last_odom_tran[:3, 3])
             if self.config.uniform_motion_on and not self.lose_track: 
@@ -243,7 +245,7 @@ class SLAMDataset(Dataset):
             )
 
         # prepare for the registration
-        if scan_id > 0:
+        if self.processed_frame > 0:
 
             cur_source_torch = (
                 self.cur_point_cloud_torch.clone()
@@ -277,7 +279,8 @@ class SLAMDataset(Dataset):
         # T4 = get_time()
         return True
     
-    def set_initial_lidar_pose(self, pose_torch):
+    def set_initial_lidar_pose(self, frame_ts, pose_torch):
+        self.lidar_frame_timestamps.append(frame_ts)
         self.cur_pose_torch = pose_torch.detach()
         self.cur_pose_ref = self.cur_pose_torch.cpu().numpy()
         
@@ -288,8 +291,8 @@ class SLAMDataset(Dataset):
         self.travel_dist[0] = 0.0
         self.last_pose_ref = self.cur_pose_ref
 
-    def update_odom_pose(self, cur_pose_torch: torch.tensor): 
-        
+    def update_odom_pose(self, frame_ts, cur_pose_torch: torch.tensor): 
+        self.lidar_frame_timestamps.append(frame_ts)
         cur_frame_id = self.processed_frame
         # needed to be at least the second frame
         assert (cur_frame_id > 0), "This function needs to be used from at least the second frame"
@@ -435,6 +438,7 @@ class SLAMDataset(Dataset):
         
         if self.config.track_on:
             write_traj_as_viral(
+                # self.lidar_frame_timestamps,
                 self.loader.pointcloud_timestamps,
                 self.odom_poses[:self.processed_frame+1],
                 os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),

@@ -35,14 +35,14 @@ def quat2rotm(q):
 # !git clone https://github.com/ntu-aris/ntuviral_gt
 
 # Set the ground truth path here
-gtgen_res_path = '/data0/dataset/VIRAL/ntuviral_gt/'
+gtgen_res_path = '/home/wangzhong/mydata/VIRAL/ntuviral_gt/'
 
 # Downdload sample fast-lio2 estimate
 # !rm -rf fastlio2_sample
 # !git clone https://github.com/ntu-aris/fastlio2_sample
 
 # Set the path to the logs of your slam estimate
-slam_est_path = '/data0/dataset/VIRAL/experiments/'
+slam_est_path = '/home/wangzhong/mydata/VIRAL/experiments/'
 
 # Set the directory where results are exported
 output_dir = slam_est_path + '/analysis'
@@ -66,9 +66,9 @@ gndtr_logs = sorted(gndtr_logs)
 gndtr_df   = pd.DataFrame([str(x) for x in gndtr_logs], columns=['fullpath'])
 
 # Search for the estimates
-slam_est_logs = glob.glob(slam_est_path + '/**/odometry.csv', recursive=True)
+slam_est_logs = glob.glob(slam_est_path + '/nya_01/odometry.csv', recursive=True)
 slam_est_logs = sorted(slam_est_logs)
-est_df = pd.DataFrame([str(x) for x in slam_est_logs if 'result_' in str(x)], columns=['fullpath'])
+est_df = pd.DataFrame([str(x) for x in slam_est_logs if '_' in str(x)], columns=['fullpath'])
 
 print(est_df)
 
