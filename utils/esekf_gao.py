@@ -214,8 +214,10 @@ class ESEKF(object):
         
         phi = -(w_m-w_b) * dt
         angle = la.norm(phi)
-        axis = phi / angle
-        dR = tr.rotation_matrix(angle, axis)[:3, :3]
+        dR=np.eye(3)
+        if abs(angle) > 1e-4:
+            axis = phi / angle
+            dR = tr.rotation_matrix(angle, axis)[:3, :3]
         Fx[6:9, 6:9] = dR
         Fx[6:9, 9:12] = -np.eye(3)*dt
         Fx[9:18, 9:18] = np.eye(9)

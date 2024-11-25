@@ -24,7 +24,7 @@
 import glob
 import os
 import sys
-sys.path.insert(0, '/home/wangzhong/pin-lio/')
+# sys.path.insert(0, '/home/wangzhong/pin-lio/')
 import struct
 import numpy as np
 from pathlib import Path
@@ -38,27 +38,17 @@ from typing import cast
 import math
 
 class ViralDataset:
-    def __init__(self, data_dir: Path, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
-        if data_dir.is_file():
-            self.sequence_id = os.path.basename(data_dir).split(".")[0]
-            self.bag = AnyReader([data_dir])
+    def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
+        self.bag_filename = Path(os.path.join(data_dir, sequence, sequence+'.bag'))
+        self.sequence_id = sequence
+        if self.bag_filename.is_file():
+            self.bag = AnyReader([self.bag_filename])
+            self.bag.open()
+            print('Open rosbag: {}'.format(self.bag_filename))
         else:
-            bagfiles = [Path(path) for path in glob.glob(os.path.join(data_dir, "*.bag"))]
-            if len(bagfiles) > 0:
-                self.sequence_id = os.path.basename(bagfiles[0]).split(".")[0]
-                self.bag = AnyReader(bagfiles)
-            else:
-                self.sequence_id = os.path.basename(data_dir).split(".")[0]
-                self.bag = AnyReader([data_dir])
-
-        if len(self.bag.paths) > 1:
-            print("Reading multiple .bag files in directory:")
-            print("\n".join(natsort.natsorted([path.name for path in self.bag.paths])))
-
-        self.bag.open()
+            raise FileNotFoundError('Open rosbag: {} failed!'.format(self.bag_filename))
 
         # self.topic = self.check_topic(topic)
-        # Default Main Lidar: lidar_topic_a 
         self.lidar_topic_h = lidar_topics['master_lidar']
         self.lidar_topic_v = lidar_topics['slave_lidar']
         self.imu_topic = imu_topic
@@ -94,6 +84,7 @@ class ViralDataset:
     
     def parse_calibratin(self, calibration):
         # imu parameters
+        self.gravity = calibration_dict['gravity']
         self.accel_std = calibration['accel_std']
         self.accel_rw = calibration['accel_rw']
         self.gyro_std = calibration['gyro_std']
@@ -158,9 +149,10 @@ class ViralDataset:
     def __del__(self):
         if hasattr(self, "bag"):
             self.bag.close()
+            print('Close rosbag: {}'.format(self.bag_filename))
 
     def __len__(self):
-        return self.n_scans
+        return self.n_scans # account for the main lidar
 
     def __next__(self):
         connection, timestamp, rawdata = next(self.msgs)
@@ -236,7 +228,7 @@ class ViralDataset:
         return float(nsec) / 1e9
 
     def get_frames_timestamps(self) -> list:
-        return self.timestamps
+        return self.pointcloud_timestamps
 
     def check_topic(self, topic: str) -> str:
         # Extract all PointCloud2 msg topics from the bagfile

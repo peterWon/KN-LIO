@@ -1,0 +1,16 @@
+base_config: config/viral/viral.yaml
+
+setting:
+  data_loader_seq: 'spms_02'
+  
+calibration:
+  accel_std: 0.365432018302
+  accel_rw: 0.00433
+  gyro_std: 0.00367396706572
+  gyro_rw: 2.66e-05
+
+process:
+  min_range_m: 3.0
+  max_range_m: 80.0
+  vox_down_m: 0.08
+  min_z_m: -50.

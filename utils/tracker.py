@@ -66,13 +66,21 @@ class Tracker:
         self.K = dataset.loader.K
         self.width = dataset.loader.width
         self.height = dataset.loader.height
+        self.ba_guess = None
+        self.bg_guess = None
+        if hasattr(dataset.loader, 'imu_bias_a'):
+            print('Using calibrated bias.')
+            self.ba_guess = dataset.loader.imu_bias_a
+        if hasattr(dataset.loader, 'imu_bias_g'):
+            self.bg_guess = dataset.loader.imu_bias_g
+        
 
         # for initialization
         self.initialized = False
         self.imu_queue = deque()
         self.cached_lidar_frames = 0
         # self.gravity = np.array([0, 0, -9.805])
-        self.gravity = np.array([0, 0, -9.781]) #https://jxzy.ustc.edu.cn/jxzy/teacher/jiangyi/file/2021/3/18150101.pdf
+        self.gravity = np.array([0, 0, -abs(dataset.loader.gravity)]) #https://jxzy.ustc.edu.cn/jxzy/teacher/jiangyi/file/2021/3/18150101.pdf
         self.imu_gyro_bias = []
         self.imu_acc_bias = []
         self.initial_pose = None # imu in world
@@ -117,7 +125,12 @@ class Tracker:
         q = q / np.linalg.norm(q)
         init_nominal_state[6:10] = [q[3],q[0],q[1],q[2]]
         init_nominal_state[10:13] = 0                           # init ba
+        if self.ba_guess is not None:
+            print('Using calibrated bias.')
+            init_nominal_state[10:13] = self.ba_guess
         init_nominal_state[13:16] = mean_angular_vel            # init bg
+        if self.bg_guess is not None:
+            init_nominal_state[13:16] = self.bg_guess
         init_nominal_state[16:19] = self.gravity                # init g
         
         self.eskf = ESEKF(init_nominal_state, self.imu_paras)
@@ -167,23 +180,27 @@ class Tracker:
         #     T_WL, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points, cur_pose_guess_torch, source_colors, source_normals)# torch.tensor(T_WL_ns, device=self.device)
         #     return T_WL, cov_mat, weight_point_cloud, valid_flag
 
-        # ouster lidar记录的timestamp为最后一个点的时间
-        # print(frame_ts-self.imu_queue[0][0], frame_ts-self.imu_queue[-1][0])
+        
+        
         # imu logic
         if not self.initialized:
-            # if self.cached_lidar_frames < 3:
-            #     self.cached_lidar_frames += 1
+            # if len(self.imu_queue) < 10:
             #     return None, None, None, None
+            if self.cached_lidar_frames < 3:
+                self.cached_lidar_frames += 1
+                return None, None, None, None
+            else:
+                T_WI = self.initialize(frame_ts)
+                
+                T_WL = T_WI @ self.T_IL
+                self.last_lidar_pose = T_WL
+                self.last_imu_pose = T_WI
+                
+                # print('Initial lidar pose: ', T_WL)
+                return torch.tensor(T_WL, device=self.device), None, None, True # return lidar pose in world frame
 
-            T_WI = self.initialize(frame_ts)
-            
-            T_WL = T_WI @ self.T_IL
-            self.last_lidar_pose = T_WL
-            self.last_imu_pose = T_WI
-            
-            # print('Initial lidar pose: ', T_WL)
-            return torch.tensor(T_WL, device=self.device), None, None, True # return lidar pose in world frame
-        
+        # ouster/hesai lidar记录的timestamp为最后一个点的时间
+        # print(frame_ts-self.imu_queue[0][0], frame_ts-self.imu_queue[-1][0])
         # propagate current state
         while True:
             if len(self.imu_queue) == 0:
@@ -213,8 +230,8 @@ class Tracker:
         T_WI_opt, cov_mat, weight_point_cloud, valid_flag = self.tracking(source_points_I, torch.tensor(T_WI_ns, device=self.device), source_colors, source_normals)# 
     
         if not valid_flag:
-            print("Tracking Error")
-            return T_WL, cov_mat, weight_point_cloud, valid_flag
+            print("Loss Tracking Once")
+            return cur_pose_guess_torch, cov_mat, weight_point_cloud, valid_flag
         else:
             # sigma_measurement_p = 0.002   # in meters
             # sigma_measurement_q = 0.001  # in rad
@@ -232,7 +249,7 @@ class Tracker:
             
             self.last_lidar_pose = T_WL_updated
             self.last_imu_pose = T_WI_opt
-            print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
+            # print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
             return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
         
 
@@ -686,9 +703,28 @@ class Tracker:
 
         sdf_residual = sdf_pred - sdf_labels
 
-        sdf_residual_mean_cm = torch.mean(torch.abs(sdf_residual)).item() * 100.0
+        mask_inlier = torch.abs(sdf_residual) < 0.15
+        valid_points = valid_points[mask_inlier]
+        valid_point_count = valid_points.shape[0]
+        if valid_point_count < 10:
+            import sys
+            sys.exit('Not enough inlier points!')
+            T = torch.eye(4, device=points.device, dtype=torch.float64)
+            return T, None, None, None, valid_points, 0.0, 0.0
+        grad_norm = grad_norm[mask_inlier]
+        sdf_pred = sdf_pred[mask_inlier]
+        sdf_grad = sdf_grad[mask_inlier]
+        sdf_labels = sdf_labels[mask_inlier]
+        grad_anomaly = grad_anomaly[mask_inlier]
+        if normals is not None:
+            valid_normals = valid_normals[mask_inlier]
+        sdf_residual = sdf_residual[mask_inlier]
 
-        # print("\nOdometry residual (cm):", sdf_residual_mean_cm)
+        sdf_residual_mean_cm = torch.mean(torch.abs(sdf_residual)).item() * 100.0 #0.02,0.27,0.0001
+        # sdf_residual_max_cm = torch.max(torch.abs(sdf_residual)).item() * 100.0
+        # sdf_residual_min_cm = torch.min(torch.abs(sdf_residual)).item() * 100.0
+
+        # print("\nOdometry residual (cm):", sdf_residual_mean_cm, sdf_residual_max_cm, sdf_residual_min_cm)
         # print("Valid point count:", valid_point_count)
 
         weight_point_cloud = None
@@ -747,6 +783,8 @@ class Tracker:
         w_std = 1.0
 
         # print(w_color)
+        # print(w_res.shape, w_grad.shape)
+        # print(w_normal, w_color, w_certainty, w_std)
         w = w_res * w_grad * w_normal * w_color * w_certainty * w_std
         if not isinstance(w, (float)):
             w /= 2.0 * torch.mean(w)  # normalize weight for visualization

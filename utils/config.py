@@ -300,9 +300,44 @@ class Config:
 
         self.calibration = None
 
+    def parse_config_yaml(self, yaml_path, args=None):
+
+        with open(yaml_path, 'r') as f:
+            configs = yaml.load(f, Loader=yaml.FullLoader)
+
+        if configs is not None:
+            base_config = configs.get('base_config')
+            if base_config is not None:
+                base_config = self.parse_config_yaml(configs["base_config"])
+                if base_config is not None:
+                    configs = self.update_recursive(base_config, configs)
+                else:
+                    raise FileNotFoundError("base_config specified but not found!")
+
+        return configs
+
+    def convert_to_namespace(self, dict_in, args=None):
+        if args is None:
+            args = argparse.Namespace()
+        for ckey, cvalue in dict_in.items():
+            if ckey not in args.__dict__.keys():
+                args.__dict__[ckey] = cvalue
+
+        return args
+
+    def update_recursive(self, dict1, dict2):
+        for k, v in dict2.items():
+            if k not in dict1:
+                dict1[k] = dict()
+            if isinstance(v, dict):
+                self.update_recursive(dict1[k], v)
+            else:
+                dict1[k] = v
+        return dict1
 
     def load(self, config_file):
-        config_args = yaml.safe_load(open(os.path.abspath(config_file)))
+        # config_args = yaml.safe_load(open(os.path.abspath(config_file)))
+        config_args = self.parse_config_yaml(os.path.abspath(config_file))
 
         # common settings
         if "setting" in config_args:
@@ -313,8 +348,9 @@ class Config:
             
             # add by wz
             self.data_loader_seq = config_args["setting"].get("data_loader_seq", '00')
+            self.data_base_dir = config_args["setting"].get("data_base_dir", '')
             self.lidar_topics = config_args["setting"].get("lidar_topics", {})
-            print(self.lidar_topics)
+            # print(self.lidar_topics)
             self.imu_topic = config_args["setting"].get("imu_topic", '/imu')
             self.camera_topic = config_args["setting"].get("camera_topic", '/image')
 

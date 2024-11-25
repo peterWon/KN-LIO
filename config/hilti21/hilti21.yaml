@@ -1,47 +1,24 @@
 setting:
-  name: "test_viral"
+  name: "test_hilti"
+  device: "cuda"
+  gpu_id: 1
   use_dataloader: True
-  data_loader_name: 'viral'
-  data_loader_seq: 'rtp_03'
+  data_loader_name: 'hilti21'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
+  data_base_dir: '/home/wangzhong/mydata/HILTI2021/'
   lidar_topics: 
-    master_lidar: '/os1_cloud_node1/points'
-    slave_lidar: '/os1_cloud_node2/points'
-  camera_topic: '/left/image_raw'
-  imu_topic: '/imu/imu'
-  output_root: "./experiments"
-  pc_path: "/data0/dataset/VIRAL/rtp_03/rtp_03.bag"
-  pose_path: ""
-  calib_path: ""
-  kitti_correct: False
-  correct_deg: 0
+    master_lidar: '/os_cloud_node/points'
+    slave_lidar: '/livox/lidar' #not used now
+  camera_topic: '/alphasense/cam0/image_raw' #not used now
+  imu_topic: '/alphasense/imu'
+  # imu_topic: '/os_cloud_node/imu'
+  output_root: "./experiments/hilti21/"
 calibration:
+  calibration_file: '/home/wangzhong/mydata/HILTI2021/calibration_02.yaml'
   accel_std: 0.0365432018302
   accel_rw: 0.000433
   gyro_std: 0.00367396706572
   gyro_rw: 2.66e-05
-  T_imu_hlidar: [ 1.0,  0.0,  0.0, -0.050,
-           0.0,  1.0,  0.0,  0.000,
-           0.0,  0.0,  1.0,  0.055,
-           0.0,  0.0,  0.0,  1.000 ]
-  T_imu_vlidar: [ -1.0,  0.0,  0.0, -0.550,
-           0.0,  0.0,  1.0,  0.030,
-           0.0,  1.0,  0.0,  0.050,
-           0.0,  0.0,  0.0,  1.000 ]
-  T_imu_camera: [ 0.02183084, -0.01312053,  0.99967558,  0.00552943,
-           0.99975965,  0.00230088, -0.02180248, -0.12431302,
-          -0.00201407,  0.99991127,  0.01316761,  0.01614686,
-           0.00000000,  0.00000000,  0.00000000,  1.00000000 ]
-  fx: 4.250258563372763e+02
-  fy: 4.267976260903337e+02
-  cx: 3.860151866550880e+02
-  cy: 2.419130336743440e+02
-  width: 752
-  height: 480
-  distorted: True
-  k1: -0.288105327549552
-  k2: 0.074578284234601
-  p1: 7.784489598138802e-04
-  p2: -2.277853975035461e-04
+  gravity: 9.805
 process:
   min_range_m: 3.0
   max_range_m: 80.0

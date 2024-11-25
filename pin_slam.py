@@ -173,7 +173,8 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     # frame id as the processed frame, possible skipping done in data loader
     frame_id = 0
     initialized_dataset = False
-    while True:
+    pbar = tqdm(total = dataset.total_pc_count + 1) 
+    while frame_id < dataset.total_pc_count:
         frame_data = dataset.read_next_datastream()
         if frame_data is None:
             dataset.write_results_log()
@@ -193,11 +194,9 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             dataset.cur_point_cloud_torch = torch.tensor(points, device=dataset.device, dtype=dataset.dtype)
             dataset.cur_point_ts_torch = torch.tensor(point_ts, device=dataset.device, dtype=dataset.dtype)
             valid_frame = dataset.preprocess_scan(frame_id)
+
             if not valid_frame:
                 sys.exit("Not valid frame, current frameid: ", frame_id)
-                # dataset.processed_frame += 1
-                # frame_id += 1
-                # continue
 
             # II. Odometry
             # 用frame-to-model registration，直接求SDF场梯度，用LM-ICP，而不是像一般neural slam那样算loss，优化位姿           
@@ -205,11 +204,11 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                                                 frame_ts, dataset.cur_source_points, dataset.cur_point_ts_torch,
                                                 dataset.cur_source_colors, dataset.cur_source_normals, dataset.cur_pose_guess_torch)
             dataset.lose_track = not valid_flag
-
+            
+            # TODO
             if not valid_flag:
                 continue
 
-            
             if not initialized_dataset: 
                 dataset.set_initial_lidar_pose(frame_ts, cur_lidar_pose_torch)
                 initialized_dataset = True
@@ -351,6 +350,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                 # neural_points.clear_temp() # clear temp data for output
             frame_id += 1
             dataset.processed_frame += 1
+            pbar.update(1)
             T_lidar_end = get_time()
             # print((T_lidar_end-T_lidar_start)* 1e3)
         elif "image" in dict_keys: # support multiple cameras
@@ -362,13 +362,12 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             imus = frame_data['imu']
             imus_ts = frame_data['imu_ts']
             tracker.process_imu(imus, imus_ts)
-        
-        # regular saving logs
-        # if config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0:
-        #     dataset.write_results_log()
 
-    
-        
+    pbar.close()
+    # regular saving logs
+    # if config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0:
+    #     dataset.write_results_log()
+
     #     dataset.processed_frame += 1
     
     # # VI. Save results

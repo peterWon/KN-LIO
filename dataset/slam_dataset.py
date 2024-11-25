@@ -52,42 +52,29 @@ class SLAMDataset(Dataset):
         self.calib = {"Tr": np.eye(4)} # as T_lidar<-camera
         
         self.loader = None
+        # 'Only rosbag reader supportted currently!'
+        assert(config.use_dataloader)
+        self.loader = dataset_factory(
+            dataloader=config.data_loader_name, # a specific dataset or data format
+            data_dir=config.data_base_dir,
+            sequence=config.data_loader_seq,
+            lidar_topics=config.lidar_topics,
+            imu_topic=config.imu_topic,
+            camera_topic=config.camera_topic,
+            calibration=config.calibration
+        )
         
-        if config.use_dataloader: 
-            # print(config.data_loader_name)
-            self.loader = dataset_factory(
-                dataloader=config.data_loader_name, # a specific dataset or data format
-                data_dir=Path(config.pc_path),
-                sequence=config.data_loader_seq,
-                lidar_topics=config.lidar_topics,
-                imu_topic=config.imu_topic,
-                camera_topic=config.camera_topic,
-                calibration=config.calibration
-            )
-           
-            config.end_frame = len(self.loader)
-            used_frame_count = len(self.loader)
-            self.total_pc_count = used_frame_count
-            max_frame_number = self.total_pc_count
-            
-            if hasattr(self.loader, 'gt_poses'):
-                self.gt_poses = self.loader.gt_poses[config.begin_frame:config.end_frame:config.step_frame]
-                self.gt_pose_provided = True
-            else:
-                self.gt_pose_provided = False
-            if hasattr(self.loader, 'calibration'):
-                self.calib["Tr"][:3, :4] = self.loader.calibration["Tr"].reshape(3, 4)
-            if hasattr(self.loader, "K_mats"): # as dictionary
-                self.K_mats = self.loader.K_mats
-                self.cam_names = list(self.K_mats.keys())
-            if hasattr(self.loader, "T_c_l_mats"):
-                self.T_c_l_mats = self.loader.T_c_l_mats # as dictionary
-            if config.color_channel == 3:
-                self.loader.load_img = True
-            
-        else: # original pin-slam generic loader
-            sys.exit("Only rosbag reader supportted currently!")
-
+        config.end_frame = len(self.loader)
+        used_frame_count = len(self.loader) #TODO(wz): enable start time setting
+        self.total_pc_count = used_frame_count
+        max_frame_number = self.total_pc_count
+        
+        if hasattr(self.loader, 'gt_poses'):
+            self.gt_poses = self.loader.gt_poses[config.begin_frame:config.end_frame:config.step_frame]
+            self.gt_pose_provided = True
+        else:
+            self.gt_pose_provided = False
+        
         # use pre-allocated numpy array
         self.odom_poses = None
         if config.track_on:
@@ -142,7 +129,7 @@ class SLAMDataset(Dataset):
         self.cur_source_normals = None
         self.cur_source_colors = None
 
-        self.lidar_frame_timestamps = []
+        self.processed_frame_timestamps = [] # the main LiDAR
 
     
     def read_next_datastream(self):
@@ -249,7 +236,6 @@ class SLAMDataset(Dataset):
 
         # prepare for the registration
         if self.processed_frame > 0:
-
             cur_source_torch = (
                 self.cur_point_cloud_torch.clone()
             )  # used for registration
@@ -266,24 +252,11 @@ class SLAMDataset(Dataset):
                 self.cur_point_ts_torch = cur_ts[idx]
             else:
                 self.cur_point_ts_torch = None
-
-            # deskewing (motion undistortion) for source point cloud
-            # if self.config.deskew and not self.lose_track:
-            #     self.cur_source_points = deskewing(
-            #         self.cur_source_points,
-            #         cur_source_ts,
-            #         torch.tensor(
-            #             self.last_odom_tran, device=self.device, dtype=self.dtype
-            #         )
-            #     )  # T_last<-cur
-
-            # print("# Source point for registeration : ", cur_source_torch.shape[0])
-
-        # T4 = get_time()
+            
         return True
     
     def set_initial_lidar_pose(self, frame_ts, pose_torch):
-        self.lidar_frame_timestamps.append(frame_ts)
+        self.processed_frame_timestamps.append(frame_ts)
         self.cur_pose_torch = pose_torch.detach()
         self.cur_pose_ref = self.cur_pose_torch.cpu().numpy()
         
@@ -295,7 +268,7 @@ class SLAMDataset(Dataset):
         self.last_pose_ref = self.cur_pose_ref
 
     def update_odom_pose(self, frame_ts, cur_pose_torch: torch.tensor): 
-        self.lidar_frame_timestamps.append(frame_ts)
+        self.processed_frame_timestamps.append(frame_ts)
         cur_frame_id = self.processed_frame
         # needed to be at least the second frame
         assert (cur_frame_id > 0), "This function needs to be used from at least the second frame"
@@ -440,12 +413,20 @@ class SLAMDataset(Dataset):
         frame_str = str(self.processed_frame)
         
         if self.config.track_on:
-            write_traj_as_viral(
-                # self.lidar_frame_timestamps,
-                self.loader.pointcloud_timestamps,
-                self.odom_poses[:self.processed_frame+1],
-                os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
-            )
+            if self.config.data_loader_name == 'viral' or self.config.data_loader_name == 'viral_hv':
+                write_traj_as_viral(
+                    self.processed_frame_timestamps, #in case of using mutiple frames to initialize.
+                    # self.loader.pointcloud_timestamps,
+                    self.odom_poses[:self.processed_frame+1],
+                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
+                )
+            elif self.config.data_loader_name == 'hilti':
+                write_traj_as_viral(
+                    self.processed_frame_timestamps,
+                    # self.loader.pointcloud_timestamps,
+                    self.odom_poses[:self.processed_frame+1],
+                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
+                )
         # if self.config.pgo_on:
         #     write_traj_as_o3d(
         #         self.pgo_poses[:self.processed_frame+1],
