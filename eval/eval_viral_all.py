@@ -35,14 +35,14 @@ def quat2rotm(q):
 # !git clone https://github.com/ntu-aris/ntuviral_gt
 
 # Set the ground truth path here
-gtgen_res_path = '/home/wangzhong/mydata/VIRAL/ntuviral_gt/'
+gtgen_res_path = '/home/wz/Data/VIRAL/ntuviral_gt/'
 
 # Downdload sample fast-lio2 estimate
 # !rm -rf fastlio2_sample
 # !git clone https://github.com/ntu-aris/fastlio2_sample
 
 # Set the path to the logs of your slam estimate
-slam_est_path = '/home/wangzhong/mydata/VIRAL/experiments/'
+slam_est_path = '/home/wz/Data/VIRAL/LOG/pin-lio/'
 
 # Set the directory where results are exported
 output_dir = slam_est_path + '/analysis'
@@ -66,11 +66,13 @@ gndtr_logs = sorted(gndtr_logs)
 gndtr_df   = pd.DataFrame([str(x) for x in gndtr_logs], columns=['fullpath'])
 
 # Search for the estimates
-slam_est_logs = glob.glob(slam_est_path + '/nya_01/odometry.csv', recursive=True)
+slam_est_logs = glob.glob(slam_est_path + '/**/**.viral', recursive=True)
 slam_est_logs = sorted(slam_est_logs)
 est_df = pd.DataFrame([str(x) for x in slam_est_logs if '_' in str(x)], columns=['fullpath'])
 
+print(gndtr_df)
 print(est_df)
+
 
 # Check for the sequence
 def decode_gndtr_sequence_name(x):
@@ -97,6 +99,7 @@ def load_csv(log):
 def decode_est_sequence_name(x):
     dirname = os.path.dirname(x)
     seqname = dirname.split('/')[-1].replace('result_', '')
+    # print(seqname)
     return seqname
 
 def getGTMinTime(x):
@@ -106,11 +109,12 @@ def getGTMaxTime(x):
     return gndtr_df[gndtr_df['sequence'] == x]['pose_stamped'].iloc[0][-1, 0]
 
 def extract_est_data(data, t_min, t_max, path = None):
-    # print(t_min, 'to', t_max)
-    t = data[:, 0]/1.0e9
+    # t = data[:, 0]/1.0e9
+    t = data[:, 0]
     P = data[:, 3:6]
     Q = data[:, [9, 6, 7, 8]]
     idx_intime = [ idx for idx in range(0, len(t)) if t[idx] >= t_min and t[idx] <= t_max ]
+    # print(idx_intime)
 
     t = t[idx_intime]
     P = P[idx_intime, :]
@@ -221,7 +225,7 @@ est_df['t_max'] = est_df['sequence'].apply( lambda x : getGTMaxTime(x) )
 est_df['data_est'] = est_df['fullpath'].apply(lambda x : np.loadtxt(x, delimiter=',', skiprows=1))
 est_df['t_est'], est_df['P_est'], est_df['Q_est'] = zip(*map(extract_est_data, est_df['data_est'], est_df['t_min'], est_df['t_max'], est_df['fullpath']))
 
-print(est_df)
+# print(est_df)
 # Sample the ground truth pose against the estimate.             
 est_df['traj_est'] = est_df.apply(lambda x : make_traj(x), axis=1)
 est_df['traj_gtrest'] = est_df.apply(lambda x : makeGTTraj(x), axis=1)

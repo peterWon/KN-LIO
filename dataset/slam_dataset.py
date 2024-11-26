@@ -341,7 +341,10 @@ class SLAMDataset(Dataset):
 
     def update_o3d_map(self):
 
-        frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
+        # frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
+        frame_down_torch = self.cur_source_points  # no futher downsample
+        if frame_down_torch is None:
+            frame_down_torch = self.cur_point_cloud_torch
 
         frame_o3d = o3d.geometry.PointCloud()
         frame_points_np = (

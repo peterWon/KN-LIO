@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 
-# import rerun as rr
+import rerun as rr
 import numpy as np
 import open3d as o3d
 import torch

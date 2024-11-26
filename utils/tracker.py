@@ -703,22 +703,22 @@ class Tracker:
 
         sdf_residual = sdf_pred - sdf_labels
 
-        mask_inlier = torch.abs(sdf_residual) < 0.15
-        valid_points = valid_points[mask_inlier]
-        valid_point_count = valid_points.shape[0]
-        if valid_point_count < 10:
-            import sys
-            sys.exit('Not enough inlier points!')
-            T = torch.eye(4, device=points.device, dtype=torch.float64)
-            return T, None, None, None, valid_points, 0.0, 0.0
-        grad_norm = grad_norm[mask_inlier]
-        sdf_pred = sdf_pred[mask_inlier]
-        sdf_grad = sdf_grad[mask_inlier]
-        sdf_labels = sdf_labels[mask_inlier]
-        grad_anomaly = grad_anomaly[mask_inlier]
-        if normals is not None:
-            valid_normals = valid_normals[mask_inlier]
-        sdf_residual = sdf_residual[mask_inlier]
+        # mask_inlier = torch.abs(sdf_residual) < 0.15
+        # valid_points = valid_points[mask_inlier]
+        # valid_point_count = valid_points.shape[0]
+        # if valid_point_count < 10:
+        #     import sys
+        #     sys.exit('Not enough inlier points!')
+        #     T = torch.eye(4, device=points.device, dtype=torch.float64)
+        #     return T, None, None, None, valid_points, 0.0, 0.0
+        # grad_norm = grad_norm[mask_inlier]
+        # sdf_pred = sdf_pred[mask_inlier]
+        # sdf_grad = sdf_grad[mask_inlier]
+        # sdf_labels = sdf_labels[mask_inlier]
+        # grad_anomaly = grad_anomaly[mask_inlier]
+        # if normals is not None:
+        #     valid_normals = valid_normals[mask_inlier]
+        # sdf_residual = sdf_residual[mask_inlier]
 
         sdf_residual_mean_cm = torch.mean(torch.abs(sdf_residual)).item() * 100.0 #0.02,0.27,0.0001
         # sdf_residual_max_cm = torch.max(torch.abs(sdf_residual)).item() * 100.0

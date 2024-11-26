@@ -36,8 +36,9 @@ from rosbags.image import message_to_cvimage
 import cv2
 from typing import cast
 import math
+from collections import deque
 
-class ViralDataset:
+class ViralTwoLidar:
     def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
         self.bag_filename = Path(os.path.join(data_dir, sequence, sequence+'.bag'))
         self.sequence_id = sequence
@@ -71,11 +72,18 @@ class ViralDataset:
         # lidar_connections = [x for x in self.bag.connections if x.topic == self.lidar_topic]
         # camera_connections = [x for x in self.bag.connections if x.topic == self.camera_topic]
         # imu_connections = [x for x in self.bag.connections if x.topic == self.imu_topic]
-        # self.lidar_msgs = self.bag.messages(connections=lidar_connections)
+        # hori_lidar_connection = [x for x in self.bag.connections if x.topic == self.lidar_topic_h]
+        vert_lidar_connection = [x for x in self.bag.connections if x.topic == self.lidar_topic_v]
+        self.vert_lidar_msgs = list(self.bag.messages(connections=vert_lidar_connection))
+        self.tmp_vert_msgs = deque()
+        self.cur_vert_idx = 0
+        # print('n_scans_v:', self.n_scans_v)
+        # print('n_scans_h:', self.n_scans_h)
+        # self.hori_lidar_msgs = self.bag.messages(connections=hori_lidar_connection)
         # self.camera_msgs = self.bag.messages(connections=camera_connections)
         # self.imu_msgs = self.bag.messages(connections=imu_connections)
 
-        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic_h, self.lidar_topic_v, self.camera_topic, self.imu_topic]]
+        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic_h, self.camera_topic, self.imu_topic]]
         self.msgs = self.bag.messages(connections=connections)
         self.pointcloud_timestamps = [] #main lidar
         self.image_timestamps = []
@@ -84,7 +92,7 @@ class ViralDataset:
     
     def parse_calibratin(self, calibration):
         # imu parameters
-        self.gravity = calibration_dict['gravity']
+        self.gravity = calibration['gravity']
         self.accel_std = calibration['accel_std']
         self.accel_rw = calibration['accel_rw']
         self.gyro_std = calibration['gyro_std']
@@ -163,31 +171,71 @@ class ViralDataset:
             if msg.header.frame_id=='sensor1/os_sensor':
                 points, point_ts, min_ts, max_ts = read_point_cloud(msg)
                 frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)}
-                 
-                if self.last_vlidar_points is not None:
-                    # transform to the main lidar frame, filter, and merge, whether to sort by timestamps
-                    points_v = self.last_vlidar_points[:,:3] @ self.T_hv[:3,:3] + self.T_hv[:3, 3]
+                
+                # read adjacent secondary lidar data
+                for i in range(self.cur_vert_idx, self.n_scans_v):
+                    vert_connection, vert_timestamp, vert_rawdata_= self.vert_lidar_msgs[i]
+                    vert_msg = self.bag.deserialize(vert_rawdata_, vert_connection.msgtype)
+                    vert_points, vert_point_ts, _, _ = read_point_cloud(vert_msg)
+                    self.tmp_vert_msgs.append({"points": vert_points, "point_ts": vert_point_ts, "frame_ts": vert_timestamp})
+                    self.cur_vert_idx += 1
+                    if vert_timestamp > timestamp:
+                        break
 
-                    ts_v_start = self.last_vlidar_frame_ts - self.last_vlidar_points_ts[-1] #frame_ts is the last point's timestamp
-                    ts_v = ts_v_start + self.last_vlidar_points_ts
-
+                # merge secondary lidar data
+                if len(self.tmp_vert_msgs) > 0:
                     ts_h_start = timestamp - point_ts[-1]
                     ts_h = ts_h_start + point_ts
-                    mask = (ts_v > ts_h_start) & (ts_v < timestamp) 
-                    
-                    points_v = points_v[mask]
-                    ts_v = ts_v[mask]
+                    point_hv = points
+                    point_ts_hv = ts_h
+                    for k in range(len(self.tmp_vert_msgs)):
+                        vert_frame = self.tmp_vert_msgs[k]
+                        
+                        pts_ts_v = vert_frame['point_ts']
+                        frame_ts_v = vert_frame['frame_ts']
+                        ts_v_start = frame_ts_v - pts_ts_v[-1] #frame_ts is the last point's timestamp
 
-                    point_hv = np.concatenate((points, points_v))
-                    point_ts_hv = np.concatenate((ts_h, ts_v))
+                        if frame_ts_v < ts_h_start or ts_v_start > frame_ts_v: # no overlap, to pop
+                            continue
+                        else:
+                            # transform to the main lidar frame, filter, and merge.
+                            # whether to sort by timestamps
+                            pts_v = vert_frame['points']
+                            pts_v = pts_v @ self.T_hv[:3,:3] + self.T_hv[:3, 3]
+                            
+                            ts_v = ts_v_start + pts_ts_v
+                            ts_h = ts_h_start + point_ts
+                            mask = (ts_v > ts_h_start) & (ts_v < timestamp) 
+                            
+                            pts_v = pts_v[mask]
+                            ts_v = ts_v[mask]
+
+                            point_hv = np.concatenate((point_hv, pts_v))
+                            point_ts_hv = np.concatenate((point_ts_hv, ts_v))
+
                     # normalized timestamp of points to 0-1
                     point_ts_hv = point_ts_hv - ts_h_start
                     min_ts = np.min(point_ts_hv)
                     max_ts = np.max(point_ts_hv)
                     point_ts_normalized = (point_ts_hv - min_ts) / (max_ts - min_ts)
 
-                    # print(points.shape, point_hv.shape)
+                    # print(points.shape, point_hv.shape)   
+                    # print('vertical lidar timestamp: ', self.last_vlidar_frame_ts)
                     frame_data = {"points": point_hv, "point_ts": point_ts_normalized, "frame_ts": self.to_sec(timestamp)} 
+                    
+                    # pop old secondary lidar data
+                    while True:
+                        if len(self.tmp_vert_msgs) == 0:
+                            break
+                        vert_frame = self.tmp_vert_msgs[0]
+                        pts_ts_v = vert_frame['point_ts']
+                        frame_ts_v = vert_frame['frame_ts']
+                        ts_v_start = frame_ts_v - pts_ts_v[-1] #frame_ts is the last point's timestamp
+                        if frame_ts_v < ts_h_start: # no overlap, to pop
+                            self.tmp_vert_msgs.popleft()
+                        else:
+                            break
+                # print(frame_data['points'].shape, frame_data['point_ts'].shape)    
                 self.pointcloud_timestamps.append(timestamp)
             elif msg.header.frame_id=='sensor2/os_sensor':
                 # cache it and wait for next main lidar data
