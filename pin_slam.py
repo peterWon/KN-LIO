@@ -205,11 +205,12 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                                                 dataset.cur_source_colors, dataset.cur_source_normals, dataset.cur_pose_guess_torch)
             dataset.lose_track = not valid_flag
             
-            # TODO
-            if not valid_flag:
-                continue
+            
 
             if not initialized_dataset: 
+                # TODO
+                if not valid_flag:
+                    continue
                 dataset.set_initial_lidar_pose(frame_ts, cur_lidar_pose_torch)
                 initialized_dataset = True
             else:

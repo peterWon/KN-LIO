@@ -331,7 +331,7 @@ class SLAMDataset(Dataset):
             self.consecutive_lose_track_frame = 0
 
         if self.consecutive_lose_track_frame > 10:
-            self.write_results() # record before the failure point
+            # self.write_results() # record before the failure point
             sys.exit("Lose track for a long time, system failed") 
 
     def update_poses_after_pgo(self, pgo_poses):
@@ -340,7 +340,6 @@ class SLAMDataset(Dataset):
         self.last_pose_ref = self.cur_pose_ref  # update for next frame
 
     def update_o3d_map(self):
-
         # frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
         frame_down_torch = self.cur_source_points  # no futher downsample
         if frame_down_torch is None:

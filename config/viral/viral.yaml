@@ -1,10 +1,10 @@
 setting:
   name: "test_viral"
   device: "cuda"
-  gpu_id: 1
+  gpu_id: 0
   use_dataloader: True
   data_loader_name: 'viral'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
-  data_base_dir: '/home/wangzhong/mydata/VIRAL/'
+  data_base_dir: '/media/wz/Samsung_T5/Data/NTU-VIRAL/'
   lidar_topics: 
     master_lidar: '/os1_cloud_node1/points'
     slave_lidar: '/os1_cloud_node2/points'
@@ -82,10 +82,10 @@ pgo:
 optimizer: # mapper
   batch_size: 16384     
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
-  sensor_cad_path: ./cad/kitti_car.ply
-  mesh_freq_frame: 500 # reconstruct the mesh every x frames
+  sensor_cad_path: ''
+  mesh_freq_frame: 50 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False

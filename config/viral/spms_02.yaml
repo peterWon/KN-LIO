@@ -4,13 +4,30 @@ setting:
   data_loader_seq: 'spms_02'
   
 calibration:
-  accel_std: 0.365432018302
-  accel_rw: 0.00433
-  gyro_std: 0.00367396706572
-  gyro_rw: 2.66e-05
+  accel_std: 0.1
+  accel_rw: 0.0001
+  gyro_std: 0.1
+  gyro_rw: 0.0001
+
+tracker:
+  source_vox_down_m: 0.6
+  iter_n: 100
+  GM_grad: 0.1 
+  GM_dist: 0.3 
 
 process:
   min_range_m: 3.0
-  max_range_m: 80.0
-  vox_down_m: 0.08
-  min_z_m: -50.
+  max_range_m: 120.0
+  vox_down_m: 0.06
+  min_z_m: -3.5
+
+eval:
+  o3d_vis_on: False # visualize the mapping or not
+  silence_log: True # output the logs or not
+  sensor_cad_path: ''
+  mesh_freq_frame: 1000 # reconstruct the mesh every x frames
+  mesh_min_nn: 9
+  save_mesh: True
+  save_map: False
+  save_merged_pc: False
+  log_freq_frame: 1000

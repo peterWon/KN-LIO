@@ -1,10 +1,10 @@
 setting:
   name: "test_hilti"
   device: "cuda"
-  gpu_id: 1
+  gpu_id: 0
   use_dataloader: True
   data_loader_name: 'hilti21'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
-  data_base_dir: '/home/wangzhong/mydata/HILTI2021/'
+  data_base_dir: '/media/wz/Samsung_T5/Data/HILTI21/'
   lidar_topics: 
     master_lidar: '/os_cloud_node/points'
     slave_lidar: '/livox/lidar' #not used now
@@ -13,7 +13,7 @@ setting:
   # imu_topic: '/os_cloud_node/imu'
   output_root: "./experiments/hilti21/"
 calibration:
-  calibration_file: '/home/wangzhong/mydata/HILTI2021/calibration_02.yaml'
+  calibration_file: '/media/wz/Samsung_T5/Data/HILTI21/calibration_02.yaml'
   accel_std: 0.0365432018302
   accel_rw: 0.000433
   gyro_std: 0.00367396706572
@@ -61,12 +61,12 @@ pgo:
 optimizer: # mapper
   batch_size: 16384     
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ./cad/kitti_car.ply
-  mesh_freq_frame: 500 # reconstruct the mesh every x frames
+  mesh_freq_frame: 50 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False
   save_merged_pc: False
-  log_freq_frame: 50
+  log_freq_frame: 500
