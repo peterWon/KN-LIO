@@ -39,6 +39,8 @@ import numpy as np
 try:
     from rosbags.typesys.types import sensor_msgs__msg__PointCloud2 as PointCloud2
     from rosbags.typesys.types import sensor_msgs__msg__PointField as PointField
+    # from rosbags.typesys.types import livox_ros_driver__msg__CustomMsg as LivoxPointCloud
+    # from rosbags.typesys.types import livox_ros_driver_msg_CustomPoint as LivoxPoint
 except ImportError as e:
     raise ImportError('rosbags library not installed, run "pip install -U rosbags"') from e
 
@@ -55,6 +57,37 @@ _DATATYPES[PointField.FLOAT64] = np.dtype(np.float64)
 
 DUMMY_FIELD_PREFIX = "unnamed_field"
 
+def read_point_cloud_livox(msg) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Extract poitns and timestamps from a LivoxPointCloud message.
+
+    :return: Tuple of [points, timestamps]
+        points: array of x, y z points, shape: (N, 3)
+        timestamps: array of per-pixel timestamps, shape: (N,)
+    """
+    cloud = msg.points
+    timestamp_ns = msg.timebase
+    point_num = msg.point_num
+
+    points = np.ndarray(
+        shape=(point_num, 3),
+        dtype=np.float64
+    )
+    offset_time = np.ndarray(
+        shape=(point_num),
+        dtype=np.float64
+    )
+    for i in range(point_num):
+        points[i] = np.array([cloud[i].x, cloud[i].y, cloud[i].z])
+        offset_time[i] = cloud[i].offset_time
+
+    # # Remove nan if any
+    points = points[~np.any(np.isnan(points), axis=1)]
+    min_timestamp = offset_time[0]
+    max_timestamp = offset_time[-1]
+    # min_timestamp = np.min(offset_time)
+    # max_timestamp = np.max(offset_time)
+    return points.astype(np.float64), offset_time, min_timestamp, max_timestamp
 
 def read_point_cloud(msg: PointCloud2) -> Tuple[np.ndarray, np.ndarray]:
     """

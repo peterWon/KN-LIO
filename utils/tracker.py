@@ -146,7 +146,7 @@ class Tracker:
         meas = [imu_ts] + imu_data
         self.imu_queue.append(np.array(meas)) 
         
-        # initialize and predict when lidar arives fot the sake of asynchronous messages
+        # initialize and predict when lidar arives for the sake of asynchronous messages
         # if not self.initialized:
         #     self.imu_readings_cache.append(meas)
         # else:

@@ -340,8 +340,8 @@ class SLAMDataset(Dataset):
         self.last_pose_ref = self.cur_pose_ref  # update for next frame
 
     def update_o3d_map(self):
-        # frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
-        frame_down_torch = self.cur_source_points  # no futher downsample
+        frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
+        # frame_down_torch = self.cur_source_points  # no futher downsample
         if frame_down_torch is None:
             frame_down_torch = self.cur_point_cloud_torch
 
