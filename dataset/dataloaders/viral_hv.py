@@ -195,7 +195,7 @@ class ViralTwoLidar:
                         frame_ts_v = vert_frame['frame_ts']
                         ts_v_start = frame_ts_v - pts_ts_v[-1] #frame_ts is the last point's timestamp
 
-                        if frame_ts_v < ts_h_start or ts_v_start > frame_ts_v: # no overlap, to pop
+                        if frame_ts_v < ts_h_start or ts_v_start > timestamp: # no overlap, to pop
                             continue
                         else:
                             # transform to the main lidar frame, filter, and merge.
