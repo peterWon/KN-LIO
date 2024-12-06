@@ -10,7 +10,7 @@ setting:
     slave_lidar: '/os1_cloud_node2/points'
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
-  output_root: "./experiments/viral/"
+  output_root: "./experiments/viral_debug/"
 calibration:
   gravity: 9.781
   accel_std: 0.0365432018302
@@ -44,7 +44,7 @@ process:
   min_range_m: 3.0
   max_range_m: 80.0
   vox_down_m: 0.08
-  min_z_m: -3.5
+  min_z_m: -100.
 sampler:
   surface_sample_range_m: 0.25 
   surface_sample_n: 4

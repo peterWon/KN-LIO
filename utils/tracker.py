@@ -106,9 +106,12 @@ class Tracker:
 
         self.imu_gyro_bias = mean_angular_vel
         self.imu_acc_bias = np.array([0., 0., 0.])
-
+        
+        g_norm_measure = np.linalg.norm(mean_linear_acc)
         va = -self.gravity.reshape(1,3)
-        vb = mean_linear_acc.reshape(1,3)
+        vb = mean_linear_acc.reshape(1,3)/np.linalg.norm(mean_linear_acc) * abs(self.gravity[2])
+        # print(mean_linear_acc, np.linalg.norm(mean_linear_acc))
+
         R, _= SSTR.align_vectors(va, vb)
         pose = np.eye(4)
         pose[:3,:3] = R.as_matrix()
@@ -183,12 +186,13 @@ class Tracker:
         
         
         # imu logic
+        # TODO(wz): 初始化时acc_bias初始化为0，导致如果一开始是静止的，会有一小段向下/向上的轨迹飘逸
         if not self.initialized:
-            # if len(self.imu_queue) < 10:
-            #     return None, None, None, None
-            if self.cached_lidar_frames < 3:
-                self.cached_lidar_frames += 1
+            if len(self.imu_queue) < 100:
                 return None, None, None, None
+            # if self.cached_lidar_frames < 3:
+            #     self.cached_lidar_frames += 1
+            #     return None, None, None, None
             else:
                 T_WI = self.initialize(frame_ts)
                 
@@ -249,7 +253,8 @@ class Tracker:
             
             self.last_lidar_pose = T_WL_updated
             self.last_imu_pose = T_WI_opt
-            print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
+            # print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
+            # print(T_WI_opt[2,3])
             return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
         
 
