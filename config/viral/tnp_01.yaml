@@ -2,9 +2,3 @@ base_config: config/viral/viral.yaml
 
 setting:
   data_loader_seq: 'tnp_01'
-  
-calibration:
-  accel_std: 0.365432018302
-  accel_rw: 0.00433
-  gyro_std: 0.00367396706572
-  gyro_rw: 2.66e-05

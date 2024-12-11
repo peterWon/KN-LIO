@@ -109,7 +109,7 @@ class Tracker:
         
         g_norm_measure = np.linalg.norm(mean_linear_acc)
         va = -self.gravity.reshape(1,3)
-        vb = mean_linear_acc.reshape(1,3)/np.linalg.norm(mean_linear_acc) * abs(self.gravity[2])
+        vb = mean_linear_acc.reshape(1,3)/g_norm_measure * np.linalg.norm(va)
         # print(mean_linear_acc, np.linalg.norm(mean_linear_acc))
 
         R, _= SSTR.align_vectors(va, vb)
@@ -127,7 +127,9 @@ class Tracker:
         if q[3] < 0: q = -q
         q = q / np.linalg.norm(q)
         init_nominal_state[6:10] = [q[3],q[0],q[1],q[2]]
-        init_nominal_state[10:13] = 0                           # init ba
+        # init_nominal_state[10:13] = 0                                             # init ba with zero
+        init_nominal_state[10:13] = mean_linear_acc + pose[:3,:3].T @ self.gravity  # init ba by prior gravity
+
         if self.ba_guess is not None:
             print('Using calibrated bias.')
             init_nominal_state[10:13] = self.ba_guess
@@ -222,7 +224,7 @@ class Tracker:
 
         # deskewing first
         if self.last_lidar_pose is not None and self.deskew:
-            # print('deskewing...')为啥去畸变到中间点效果比末点更好呢
+            # print('deskewing...')为啥去畸变到中间点效果比末点/起点更好呢
             relative_pose = np.linalg.inv(self.last_lidar_pose) @ T_WL_ns
             # relative_pose = np.linalg.inv(T_WL_ns) @ self.last_lidar_pose #transform to current pose
             source_points = deskewing(source_points, points_timestamps, torch.tensor(relative_pose, device=self.device))
@@ -253,7 +255,7 @@ class Tracker:
             
             self.last_lidar_pose = T_WL_updated
             self.last_imu_pose = T_WI_opt
-            # print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
+            print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
             # print(T_WI_opt[2,3])
             return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
         

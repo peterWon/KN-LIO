@@ -2,9 +2,3 @@ base_config: config/viral/viral.yaml
 
 setting:
   data_loader_seq: 'eee_01'
-
-calibration:
-  accel_std: 0.0365432018302
-  accel_rw: 0.000433
-  gyro_std: 0.00367396706572
-  gyro_rw: 2.66e-05
