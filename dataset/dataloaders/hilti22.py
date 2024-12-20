@@ -94,6 +94,7 @@ class Hilti2022Dataset:
 
             self.imu_bias_a = imu_bias_a
             self.imu_bias_g = imu_bias_g
+            # print(hesai_lidar_P)
             # print(self.T_IL)
         
         cam_cfgs = self.parse_config_yaml(os.path.abspath(cam0_yaml_path))

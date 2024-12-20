@@ -4,7 +4,13 @@ setting:
   data_loader_seq: 'LAB_Survey_2'
 
 process:
-  min_range_m: 3.0
-  max_range_m: 80.0
-  vox_down_m: 0.08
-  min_z_m: -3.5
+  min_range_m: 2.0
+  max_range_m: 30.0
+  vox_down_m: 0.06
+  min_z_m: -1.
+
+calibration:
+  accel_std: 0.1
+  accel_rw: 0.001
+  gyro_std: 0.1
+  gyro_rw: 0.001

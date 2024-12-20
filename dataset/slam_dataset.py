@@ -340,8 +340,8 @@ class SLAMDataset(Dataset):
         self.last_pose_ref = self.cur_pose_ref  # update for next frame
 
     def update_o3d_map(self):
-        frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
-        # frame_down_torch = self.cur_source_points  # no futher downsample
+        # frame_down_torch = self.cur_point_cloud_torch  # no futher downsample
+        frame_down_torch = self.cur_source_points  # no futher downsample
         if frame_down_torch is None:
             frame_down_torch = self.cur_point_cloud_torch
 
@@ -422,7 +422,7 @@ class SLAMDataset(Dataset):
                     self.odom_poses[:self.processed_frame+1],
                     os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
                 )
-            elif self.config.data_loader_name == 'hilti':
+            elif self.config.data_loader_name == 'hilti21' or self.config.data_loader_name == 'hilti21_hv':
                 write_traj_as_viral(
                     self.processed_frame_timestamps,
                     # self.loader.pointcloud_timestamps,

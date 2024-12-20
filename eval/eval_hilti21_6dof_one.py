@@ -31,15 +31,24 @@ def quat2rotm(q):
     return quat2rotm_(q)[0:3, 0:3]
 
 
+# t = np.array([1.02543773e-02, -6.65738750e-03, 1.30729657e-01])
+# R = np.array([ 9.99975732e-01,  2.45564447e-03, -6.51967178e-03,
+#                   2.45785422e-03, -9.99996925e-01,  3.30944944e-04,
+#                   -6.51883904e-03, -3.46961315e-04, -9.99978692e-01]).reshape(3,3)
+# T= np.eye(4)
+# T[:3,:3]=R
+# T[:3, 3]=t
+# print(np.linalg.inv(T))
+
 # Set the ground truth path here
-gtgen_res_path = '/home/wz/Data/VIRAL/ntuviral_gt/'
+gtgen_res_path = '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2021/ground_truth/'
 
 # Downdload sample fast-lio2 estimate
 # !rm -rf fastlio2_sample
 # !git clone https://github.com/ntu-aris/fastlio2_sample
 
 # Set the path to the logs of your slam estimate
-slam_est_path = '/home/wz/Data/VIRAL/LOG/knlio/'
+slam_est_path = '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2021/LOG/kn_lio/'
 
 # Offset from body center to the prism
 t_B_prism = np.array([-0.293656, -0.012288, -0.273095]).reshape((3,1))
@@ -52,14 +61,15 @@ min_completeness = 5.0
 
 
 # Search for the sequence name
-gt_basedir = '/home/wz/Data/VIRAL/ntuviral_gt/'
-latest_log = 'spms_01'
+gt_basedir = '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2021/ground_truth/'
+latest_log = 'result_LAB_Survey_2'
+# latest_log = 'result_uzh_tracking_area_run2'
 
-# sequence_name = latest_log.split('sult_')[1]
-sequence_name = latest_log
+sequence_name = latest_log.split('sult_')[1]
 
-gndtr = os.path.join(gt_basedir, sequence_name, 'ground_truth.csv')
-est = os.path.join(slam_est_path, latest_log, '4181_odom_poses.viral')
+gndtr = os.path.join(gt_basedir, sequence_name+'.txt')
+est = os.path.join(slam_est_path, latest_log, '1352_odom_poses.viral')
+# est = os.path.join(slam_est_path, latest_log, '890_odom_poses.viral')
 
 print(gndtr)
 print(est)
@@ -72,12 +82,12 @@ def decode_gndtr_sequence_name(x):
 
 def load_csv(log):
     # Open the log
-    data = np.loadtxt(log, delimiter=',', skiprows=1)
+    data = np.loadtxt(log, delimiter=' ', skiprows=1)
 
     # Pose stamp
-    t    = data[:, 2]/1e9
-    xyz  = data[:, 3:6]
-    quat = data[:, 6:10]
+    t    = data[:, 0] #second
+    xyz  = data[:, 1:4]
+    quat = data[:, 4:]
 
     pose_stamp = np.empty((data.shape[0], 8))
     pose_stamp[:, 0]   = t
@@ -100,6 +110,7 @@ def getGTMaxTime(gndtr_pose_stp):
 
 def extract_est_data(data, t_min, t_max, path = None):
     # print(t_min, 'to', t_max)
+    # t = data[:, 0]/1.0e9
     t = data[:, 0]
     P = data[:, 3:6]
     Q = data[:, [9, 6, 7, 8]]
@@ -110,8 +121,8 @@ def extract_est_data(data, t_min, t_max, path = None):
     Q = Q[idx_intime, :]
 
     # Add the pose offset
-    for n in range(0, len(P)):
-        P[n, :] = P[n, :] + (quat2rotm(Q[n, :]).dot(t_B_prism)).transpose()
+    # for n in range(0, len(P)):
+    #     P[n, :] = P[n, :] + (quat2rotm(Q[n, :]).dot(t_B_prism)).transpose()
 
     return (t, P, Q)
 

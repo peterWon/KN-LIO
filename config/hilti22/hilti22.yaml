@@ -1,17 +1,17 @@
 setting:
   name: "test_hilti"
   device: "cuda"
-  gpu_id: 1
+  gpu_id: 0
   use_dataloader: True
   data_loader_name: 'hilti22'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
-  data_base_dir: '/home/wangzhong/mydata/HILTI2022/'
+  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2022/'
   lidar_topics: 
     master_lidar: '/hesai/pandar'
   camera_topic: '/alphasense/cam0/image_raw' #not used now
   imu_topic: '/alphasense/imu'
   output_root: "./experiments/hilti22/"
 calibration:
-  calibration_dir: '/home/wangzhong/mydata/HILTI2022/calib/'
+  calibration_dir: '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2022/calib/'
   accel_std: 0.1
   accel_rw: 0.0001
   gyro_std: 0.1
@@ -59,12 +59,12 @@ pgo:
 optimizer: # mapper
   batch_size: 16384     
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
-  sensor_cad_path: ./cad/kitti_car.ply
-  mesh_freq_frame: 500 # reconstruct the mesh every x frames
+  sensor_cad_path: ./cad/camera.ply
+  mesh_freq_frame: 50 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False
   save_merged_pc: False
-  log_freq_frame: 50
+  log_freq_frame: 500

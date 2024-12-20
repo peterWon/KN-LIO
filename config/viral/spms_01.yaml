@@ -10,19 +10,19 @@ calibration:
   gyro_rw: 0.001
 
 tracker:
-  source_vox_down_m: 0.6
+  source_vox_down_m: 0.2
   iter_n: 100
   GM_grad: 0.1 
-  GM_dist: 0.3 
+  GM_dist: 0.2
 
 process:
   min_range_m: 3.0
-  max_range_m: 120.0
-  vox_down_m: 0.06
-  min_z_m: -50.
+  max_range_m: 100.0
+  vox_down_m: 0.08
+  min_z_m: -5.
 
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ''
   mesh_freq_frame: 1000 # reconstruct the mesh every x frames

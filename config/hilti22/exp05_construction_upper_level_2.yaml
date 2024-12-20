@@ -4,8 +4,14 @@ setting:
   data_loader_seq: 'exp05_construction_upper_level_2'
 
 calibration:
-  accel_std: 0.0365432018302
-  accel_rw: 0.000433
-  gyro_std: 0.00367396706572
-  gyro_rw: 2.66e-05
+  accel_std: 0.1
+  accel_rw: 0.0001
+  gyro_std: 0.1
+  gyro_rw: 0.0001
   gravity: 9.805
+
+process:
+  min_range_m: 3.0
+  max_range_m: 30.0
+  vox_down_m: 0.06
+  min_z_m: -1.0

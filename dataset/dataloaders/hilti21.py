@@ -84,11 +84,23 @@ class Hilti2021Dataset:
             os_lidar_extinsics = os_lidar['extrinsics']
             os_lidar_Q = os_lidar_extinsics['quaternion']
             os_lidar_P = os_lidar_extinsics['translation']
+            
+            
+            # points are in os_sensor
+            # os_sensor->os_lidar->imu
+            os_sensor = sensors.get('os_sensor')
+            os_sensor_extinsics = os_sensor['extrinsics']
+            os_sensor_Q = os_sensor_extinsics['quaternion']
+            os_sensor_P = os_sensor_extinsics['translation']
 
-            livox_lidar = sensors.get('livox_frame')
-            livox_lidar_extinsics = livox_lidar['extrinsics']
-            livox_lidar_Q = livox_lidar_extinsics['quaternion']
-            livox_lidar_P = livox_lidar_extinsics['translation']
+            # lidar parameters
+            # q_w_first_oslidar = np.array([os_lidar_Q[3], os_lidar_Q[0], os_lidar_Q[1], os_lidar_Q[2]])
+            # q_w_first_ossensor = np.array([os_sensor_Q[3], os_sensor_Q[0], os_sensor_Q[1], os_sensor_Q[2]])
+            # T_I_oslidar = quat2rotm_(q_w_first_oslidar)
+            # T_I_oslidar[:3,3] = os_lidar_P
+            # T_oslidar_ossensor = quat2rotm_(q_w_first_ossensor)
+            # T_oslidar_ossensor[:3,3] = os_sensor_P
+            # T_IL = T_I_oslidar @ T_oslidar_ossensor
 
             cam0 = sensors.get('cam0')
             cam0_extinsics = cam0['extrinsics']
@@ -118,10 +130,18 @@ class Hilti2021Dataset:
             self.imu_bias_g = imu_bias_g
 
             # lidar parameters
-            q_w_first = np.array([os_lidar_Q[3], os_lidar_Q[0], os_lidar_Q[1], os_lidar_Q[2]])
-            T = quaternion_matrix(q_w_first)
-            T[:3,3] = os_lidar_P
-            self.T_IL = np.array(T)
+            q_w_first_oslidar = np.array([os_lidar_Q[3], os_lidar_Q[0], os_lidar_Q[1], os_lidar_Q[2]])
+            q_w_first_ossensor = np.array([os_sensor_Q[3], os_sensor_Q[0], os_sensor_Q[1], os_sensor_Q[2]])
+            T_I_oslidar = quaternion_matrix(q_w_first_oslidar)
+            T_I_oslidar[:3,3] = os_lidar_P
+            T_oslidar_ossensor = quaternion_matrix(q_w_first_ossensor)
+            T_oslidar_ossensor[:3,3] = os_sensor_P
+            self.T_IL = T_I_oslidar @ T_oslidar_ossensor
+
+            if self.imu_topic=='/os_cloud_node/imu':
+                q_w_first = np.array([1,0,0,0])
+                self.T_IL = quaternion_matrix(q_w_first)
+            
 
             # camera parameters
             q_w_first = np.array([cam0_Q[3], cam0_Q[0], cam0_Q[1], cam0_Q[2]])
