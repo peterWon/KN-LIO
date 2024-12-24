@@ -4,9 +4,9 @@ setting:
   data_loader_seq: 'exp16_attic_to_upper_gallery_2'
 
 calibration:
-  accel_std: 0.1
+  accel_std: 0.03
   accel_rw: 0.0001
-  gyro_std: 0.1
+  gyro_std: 0.03
   gyro_rw: 0.0001
   gravity: 9.805
 
@@ -17,7 +17,7 @@ tracker:
   GM_dist: 0.2 
 
 process:
-  min_range_m: 0.2
+  min_range_m: 0.3
   max_range_m: 30.0
   vox_down_m: 0.08
   min_z_m: -3.0

@@ -130,9 +130,9 @@ class Tracker:
         # init_nominal_state[10:13] = 0                                             # init ba with zero
         init_nominal_state[10:13] = mean_linear_acc + pose[:3,:3].T @ self.gravity  # init ba by prior gravity
 
-        if self.ba_guess is not None:
-            print('Using calibrated bias.')
-            init_nominal_state[10:13] = self.ba_guess
+        # if self.ba_guess is not None:
+        #     print('Using calibrated bias.')
+        #     init_nominal_state[10:13] = self.ba_guess
         init_nominal_state[13:16] = mean_angular_vel            # init bg
         if self.bg_guess is not None:
             init_nominal_state[13:16] = self.bg_guess
@@ -255,7 +255,7 @@ class Tracker:
             
             self.last_lidar_pose = T_WL_updated
             self.last_imu_pose = T_WI_opt
-            print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
+            # print(self.eskf.state.Ba, self.eskf.state.Bg, T_WI_opt[2,3])
             # print(T_WI_opt[2,3])
             return torch.tensor(T_WL_updated, device=self.device), cov_mat, weight_point_cloud, True
         

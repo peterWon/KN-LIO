@@ -21,4 +21,4 @@ process:
   min_range_m: 0.5
   max_range_m: 30.0
   vox_down_m: 0.08
-  min_z_m: -3.0
+  min_z_m: -2.0

@@ -196,6 +196,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             valid_frame = dataset.preprocess_scan(frame_id)
 
             if not valid_frame:
+                dataset.write_results_log()
                 sys.exit("Not valid frame, current frameid: ", frame_id)
 
             # II. Odometry
@@ -259,9 +260,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                 T6=get_time()
                 # print('Mapping time: ', (T6-T5)*1e3)
 
-            if (config.log_freq_frame > 0 and (frame_id+1) % config.log_freq_frame == 0) or frame_id==last_frame:
-                # print('Processed {} frames'.format(frame_id+1))
-                dataset.write_results_log()
+            
             
             # V: Mesh reconstruction and visualization
             cur_mesh = None
@@ -334,21 +333,26 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                         rr.log("world/input_scan", rr.Points3D(dataset.cur_frame_o3d.points, colors=dataset.cur_frame_o3d.colors, radii=0.03))
                     if cur_mesh is not None:
                         rr.log("world/mesh_map", rr.Mesh3D(vertex_positions=cur_mesh.vertices, triangle_indices=cur_mesh.triangles, vertex_normals=cur_mesh.vertex_normals, vertex_colors=cur_mesh.vertex_colors))
-             
-            if (config.save_mesh and (frame_id+1) % config.log_freq_frame == 0) or frame_id == last_frame:
-                # neural_points.prune_map(config.max_prune_certainty, 0, True) # prune uncertain points for the final output    
-                # neural_points.recreate_hash(None, None, False, False) # merge the final neural point map 
+            
+            if config.log_freq_frame > 0:  
+                if (frame_id+1) % config.log_freq_frame == 0 or frame_id==last_frame:
+                    dataset.write_results_log() 
+                if config.save_mesh:
+                    if (frame_id+1) % config.log_freq_frame == 0 or frame_id == last_frame:
+                        # neural_points.prune_map(config.max_prune_certainty, 0, True) # prune uncertain points for the final output    
+                        # neural_points.recreate_hash(None, None, False, False) # merge the final neural point map 
+                        neural_pcd = neural_points.get_neural_points_o3d(query_global=True, color_mode = 0)
+                        if config.save_map:
+                            o3d.io.write_point_cloud(os.path.join(run_path, "map", str(frame_id)+"_neural_points.ply"), neural_pcd) # write the neural point cloud
+                        output_mc_res_m = config.mc_res_m*0.6
+                        mc_cm_str = str(round(output_mc_res_m*1e2))
+                        mesh_path = os.path.join(run_path, "mesh", str(frame_id)+"_mesh_" + mc_cm_str + "cm.ply")
+                        if cur_mesh is None:
+                            chunks_aabb = split_chunks(neural_pcd, neural_pcd.get_axis_aligned_bounding_box(), output_mc_res_m * 300) # reconstruct in chunks
+                            cur_mesh = mesher.recon_aabb_collections_mesh(chunks_aabb, output_mc_res_m, mesh_path, False, config.semantic_on, config.color_on, filter_isolated_mesh=True, mesh_min_nn=config.mesh_min_nn)
+                        else:
+                            o3d.io.write_triangle_mesh(mesh_path, cur_mesh)
 
-                neural_pcd = neural_points.get_neural_points_o3d(query_global=True, color_mode = 0)
-                if config.save_map:
-                    o3d.io.write_point_cloud(os.path.join(run_path, "map", str(frame_id)+"_neural_points.ply"), neural_pcd) # write the neural point cloud
-                if cur_mesh is None:
-                    output_mc_res_m = config.mc_res_m*0.6
-                    chunks_aabb = split_chunks(neural_pcd, neural_pcd.get_axis_aligned_bounding_box(), output_mc_res_m * 300) # reconstruct in chunks
-                    mc_cm_str = str(round(output_mc_res_m*1e2))
-                    mesh_path = os.path.join(run_path, "mesh", str(frame_id)+"_mesh_" + mc_cm_str + "cm.ply")
-                    cur_mesh = mesher.recon_aabb_collections_mesh(chunks_aabb, output_mc_res_m, mesh_path, False, config.semantic_on, config.color_on, filter_isolated_mesh=True, mesh_min_nn=config.mesh_min_nn)
-                # neural_points.clear_temp() # clear temp data for output
             frame_id += 1
             dataset.processed_frame += 1
             pbar.update(1)

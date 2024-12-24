@@ -3,8 +3,8 @@ import sys
 import glob
 import shutil
 
-log_dir = 'experiments/viral_debug/'
-des_dir = '/home/wz/Data/VIRAL/LOG/knlio-hv'
+log_dir = 'experiments/hilti22_new/'
+des_dir = '/media/wz/2C96A0A60155E8F8/Dataset/HILTI2022/LOG/test_1'
 if not os.path.exists(des_dir):
     os.mkdir(des_dir)
 for log in os.listdir(log_dir):

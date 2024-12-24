@@ -429,6 +429,13 @@ class SLAMDataset(Dataset):
                     self.odom_poses[:self.processed_frame+1],
                     os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
                 )
+            elif self.config.data_loader_name == 'hilti22':
+                write_traj_as_viral(
+                    self.processed_frame_timestamps,
+                    # self.loader.pointcloud_timestamps,
+                    self.odom_poses[:self.processed_frame+1],
+                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
+                )
         # if self.config.pgo_on:
         #     write_traj_as_o3d(
         #         self.pgo_poses[:self.processed_frame+1],
