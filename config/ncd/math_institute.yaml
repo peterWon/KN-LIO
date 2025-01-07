@@ -1,0 +1,5 @@
+base_config: config/ncd/ncd_128.yaml
+
+setting:
+  data_loader_seq: 'math_institute'
+  

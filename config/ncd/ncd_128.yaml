@@ -1,0 +1,84 @@
+setting:
+  name: "test_ncd"
+  device: "cuda"
+  gpu_id: 0
+  use_dataloader: True
+  data_loader_name: 'ncd'
+  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/NewerCollege/'
+  lidar_topics: 
+    master_lidar: '/os_cloud_node/points'
+  camera_topic: '/alphasense_driver_ros/cam0/compressed'
+  imu_topic: '/os_cloud_node/imu'
+  output_root: "./experiments/ncd/"
+calibration:
+  gravity: 9.781
+  accel_std: 0.1
+  accel_rw: 0.1
+  gyro_std: 0.001
+  gyro_rw: 0.001
+  T_imu_lidar: [1.0,  0.0,  0.0,  0.014,
+                0.0,  1.0,  0.0,  -0.012,
+                0.0,  0.0,  1.0,  -0.015,
+                0.0,  0.0,  0.0,  1.0] #os_sensor->os_imu
+  T_imu_camera: [ -0.00107029, -0.00780704, 0.99996895, 0.04622928,
+           0.99997751, 0.00661218, 0.00112192, 0.04695676,
+           -0.00662073, 0.99994766, 0.00779978, -0.00943954,
+           0.00000000,  0.00000000,  0.00000000,  1.00000000 ]
+  fx: 353.83530850045827
+  fy: 353.08084839605925
+  cx: 354.9603638484091
+  cy: 261.96623968254306
+  width: 720
+  height: 540
+  distorted: True
+  k1: -0.03908623683636908
+  k2: -0.008364734078508202
+  p1: 0.006865315014140142
+  p2: -0.0022325156415695015
+  timeshift: 0.00183212590134 #(t_imu = t_cam + shift)
+process:
+  min_range_m: 1.5
+  max_range_m: 80.0
+  min_z_m: -10.0
+  vox_down_m: 0.08
+  adaptive_range_on: True
+sampler:
+  surface_sample_range_m: 0.3
+  surface_sample_n: 6
+  free_sample_begin_ratio: 0.3
+  free_sample_end_dist_m: 1.2
+  free_front_sample_n: 2 
+neuralpoints:
+  voxel_size_m: 0.3
+  search_alpha: 0.5
+  use_mid_ts: True
+loss:
+  sigma_sigmoid_m: 0.1
+  loss_weight_on: True
+  dist_weight_scale: 1.0
+  ekional_loss_on: True
+  weight_e: 0.5
+continual:
+  batch_size_new_sample: 1000
+  pool_capacity: 2e7
+tracker:
+  source_vox_down_m: 0.8
+  iter_n: 100
+  valid_nn_k: 5
+pgo:
+  map_context: True
+  context_cosdist: 0.25
+  pgo_freq_frame: 30
+optimizer: # mapper
+  iters: 30
+  batch_size: 16384   
+eval:
+  o3d_vis_on: True # visualize the mapping or not
+  silence_log: True # output the logs or not
+  sensor_cad_path: ''
+  mesh_freq_frame: 1000 # reconstruct the mesh every x frames
+  mesh_min_nn: 9
+  save_mesh: True
+  save_map: False
+  save_merged_pc: False
+  log_freq_frame: 1000

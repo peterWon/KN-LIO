@@ -4,13 +4,13 @@ setting:
   gpu_id: 0
   use_dataloader: True
   data_loader_name: 'viral'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
-  data_base_dir: '/media/wz/Samsung_T5/Data/NTU-VIRAL/'
+  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/NTU-VIRAL/'
   lidar_topics: 
     master_lidar: '/os1_cloud_node1/points'
     slave_lidar: '/os1_cloud_node2/points'
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
-  output_root: "./experiments/viral_debug/"
+  output_root: "./experiments/viral/"
 calibration:
   gravity: 9.781
   accel_std: 0.0365432018302
@@ -72,7 +72,7 @@ continual:
   batch_size_new_sample: 1000
   pool_capacity: 2e7
 tracker:
-  source_vox_down_m: 0.6
+  source_vox_down_m: 0.2
   iter_n: 100
   GM_grad: 0.1 
   GM_dist: 0.2 
@@ -85,9 +85,9 @@ eval:
   o3d_vis_on: False # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ''
-  mesh_freq_frame: 1000 # reconstruct the mesh every x frames
+  mesh_freq_frame: 500 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False
   save_merged_pc: False
-  log_freq_frame: 1000
+  log_freq_frame: 500

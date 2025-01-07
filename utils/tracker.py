@@ -190,7 +190,7 @@ class Tracker:
         # imu logic
         # TODO(wz): 初始化时acc_bias初始化为0，导致如果一开始是静止的，会有一小段向下/向上的轨迹飘逸
         if not self.initialized:
-            if len(self.imu_queue) < 100:
+            if len(self.imu_queue) < 10:
                 return None, None, None, None
             # if self.cached_lidar_frames < 3:
             #     self.cached_lidar_frames += 1
@@ -383,6 +383,7 @@ class Tracker:
 
             # get updated pose
             T = torch.tensor(self.get_current_eskf_state(), device=self.device, dtype=self.dtype)
+            T04 = get_time()
 
             # the sdf residual should not increase too much during the optimization
             if (
@@ -423,11 +424,11 @@ class Tracker:
             ):
                 converged = True  # for the visualization (save the computation)
 
-            T04 = get_time()
+            
 
             # print("transformation time:", (T02 - T01) * 1e3)
             # print("reg time:", (T03 - T02) * 1e3)
-            # print("judge time:", (T04 - T03) * 1e3)
+            # print("update time:", (T04 - T03) * 1e3)
         
         # update covariance at the last iteration, simplefied without jocobian
         self.eskf.error_covar = (np.eye(18) - Qk @ Ht_Vinv_H.cpu().numpy()) @ Pk
@@ -654,6 +655,7 @@ class Tracker:
         )  # fixme
 
         T1 = get_time()
+        # print('query time', (T1-T0)*1e3)
 
         grad_norm = sdf_grad.norm(dim=-1, keepdim=True).squeeze()  # unit: m
 

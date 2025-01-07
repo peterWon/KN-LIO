@@ -31,14 +31,18 @@ from evo.tools.settings import SETTINGS
 def quat2rotm(q):
     return quat2rotm_(q)[0:3, 0:3]
 
+q = [0.0, 0.0, 0.0, -1.0]
+t = [-0.006253, 0.011775, -0.028535]
+R = quat2rotm_(q)
+print(R)
 
 T_lidar2imu=np.array([2.22044605e-16, -1.00000000e+00,  0.00000000e+00, -1.00000000e-03,
  -1.00000000e+00,  2.22044605e-16, -0.00000000e+00, -8.55000000e-03,
   0.00000000e+00,  0.00000000e+00, -1.00000000e+00,  5.50000000e-02,
   0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]).reshape(4,4)
-print(euler_from_matrix(T_lidar2imu[:3,:3],'rxyz'))
+# print(euler_from_matrix(T_lidar2imu[:3,:3],'rxyz'))
 T_imu2lidar = np.linalg.inv(T_lidar2imu)
-print(T_imu2lidar)
+# print(T_imu2lidar)
 
 # Minimum completeness to judge ate
 min_completeness = 5.0

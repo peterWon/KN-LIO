@@ -35,18 +35,18 @@ def quat2rotm(q):
 # !git clone https://github.com/ntu-aris/ntuviral_gt
 
 # Set the ground truth path here
-gtgen_res_path = '/home/wz/Data/VIRAL/ntuviral_gt/'
+gtgen_res_path = '/media/wz/2C96A0A60155E8F8/Dataset/NTU-VIRAL/ntuviral_gt/'
 
 # Downdload sample fast-lio2 estimate
 # !rm -rf fastlio2_sample
 # !git clone https://github.com/ntu-aris/fastlio2_sample
 
 # Set the path to the logs of your slam estimate
-slam_est_path = '/home/wz/Data/VIRAL/LOG/pin-lio/'
+slam_est_path = '/home/wz/Data/VIRAL/LOG/slamesh'
 
-# Set the directory where results are exported
-output_dir = slam_est_path + '/analysis'
-os.makedirs(output_dir, exist_ok=True)
+# # Set the directory where results are exported
+# output_dir = slam_est_path + '/analysis'
+# os.makedirs(output_dir, exist_ok=True)
 
 # region Customizable for each method ---------------------
 
@@ -66,7 +66,7 @@ gndtr_logs = sorted(gndtr_logs)
 gndtr_df   = pd.DataFrame([str(x) for x in gndtr_logs], columns=['fullpath'])
 
 # Search for the estimates
-slam_est_logs = glob.glob(slam_est_path + '/**/**.viral', recursive=True)
+slam_est_logs = glob.glob(slam_est_path + '/**/opt_odom.csv', recursive=True)
 slam_est_logs = sorted(slam_est_logs)
 est_df = pd.DataFrame([str(x) for x in slam_est_logs if '_' in str(x)], columns=['fullpath'])
 
@@ -111,6 +111,8 @@ def getGTMaxTime(x):
 def extract_est_data(data, t_min, t_max, path = None):
     # t = data[:, 0]/1.0e9
     t = data[:, 0]
+    if t[0]>1e12:
+        t = data[:, 0]/1e9
     P = data[:, 3:6]
     Q = data[:, [9, 6, 7, 8]]
     idx_intime = [ idx for idx in range(0, len(t)) if t[idx] >= t_min and t[idx] <= t_max ]

@@ -415,32 +415,18 @@ class SLAMDataset(Dataset):
         frame_str = str(self.processed_frame)
         
         if self.config.track_on:
-            if self.config.data_loader_name == 'viral' or self.config.data_loader_name == 'viral_hv':
-                write_traj_as_viral(
-                    self.processed_frame_timestamps, #in case of using mutiple frames to initialize.
-                    # self.loader.pointcloud_timestamps,
-                    self.odom_poses[:self.processed_frame+1],
-                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
-                )
-            elif self.config.data_loader_name == 'hilti21' or self.config.data_loader_name == 'hilti21_hv':
-                write_traj_as_viral(
-                    self.processed_frame_timestamps,
-                    # self.loader.pointcloud_timestamps,
-                    self.odom_poses[:self.processed_frame+1],
-                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
-                )
-            elif self.config.data_loader_name == 'hilti22':
-                write_traj_as_viral(
-                    self.processed_frame_timestamps,
-                    # self.loader.pointcloud_timestamps,
-                    self.odom_poses[:self.processed_frame+1],
-                    os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
-                )
-        # if self.config.pgo_on:
-        #     write_traj_as_o3d(
-        #         self.pgo_poses[:self.processed_frame+1],
-        #         os.path.join(self.run_path, log_folder, frame_str + "_slam_poses.ply"),
-        #     )
+            write_traj_as_viral(
+                self.processed_frame_timestamps, #in case of using mutiple frames to initialize.
+                self.odom_poses[:self.processed_frame+1],
+                os.path.join(self.run_path, log_folder, frame_str + "_odom_poses.viral"),
+            )
+            
+        if self.config.pgo_on:
+            write_traj_as_viral(
+                self.processed_frame_timestamps,
+                self.pgo_poses[:self.processed_frame+1],
+                os.path.join(self.run_path, log_folder, frame_str + "_slam_poses.viral"),
+            )
         # if self.gt_pose_provided:
         #     write_traj_as_o3d(
         #         self.gt_poses[:self.processed_frame+1],
