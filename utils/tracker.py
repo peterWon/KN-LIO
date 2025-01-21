@@ -47,7 +47,7 @@ class Tracker:
 
         self.sdf_scale = config.logistic_gaussian_ratio * config.sigma_sigmoid_m
         self.deskew = True
-        
+        self.dataset = dataset
         
         self.eskf = None
         
@@ -228,6 +228,7 @@ class Tracker:
             relative_pose = np.linalg.inv(self.last_lidar_pose) @ T_WL_ns
             # relative_pose = np.linalg.inv(T_WL_ns) @ self.last_lidar_pose #transform to current pose
             source_points = deskewing(source_points, points_timestamps, torch.tensor(relative_pose, device=self.device))
+            self.dataset.cur_point_cloud_torch = source_points #TODO: move to main
         
         
         # print(self.eskf.error_covar)
