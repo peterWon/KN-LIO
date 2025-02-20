@@ -11,13 +11,13 @@ calibration:
   gravity: 9.805
 
 tracker:
-  source_vox_down_m: 0.2
+  source_vox_down_m: 0.1
   iter_n: 100
   GM_grad: 0.1 
   GM_dist: 0.2 
 
 process:
   min_range_m: 0.5
-  max_range_m: 30.0
-  vox_down_m: 0.08
+  max_range_m: 50.0
+  vox_down_m: 0.06
   min_z_m: -2.0

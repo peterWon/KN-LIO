@@ -29,17 +29,19 @@ import struct
 import numpy as np
 from pathlib import Path
 import natsort
-from utils.point_cloud2 import read_point_cloud
+from utils.point_cloud2 import read_point_cloud, read_point_cloud_livox
+from utils.transformations import quaternion_matrix
 
 from rosbags.highlevel import AnyReader
-from rosbags.image import message_to_cvimage
+from rosbags.image import message_to_cvimage, compressed_image_to_cvimage
 import cv2
 from typing import cast
 import math
+import yaml
 
-class ViralDataset:
+class SjtuMidDataset:
     def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
-        self.bag_filename = Path(os.path.join(data_dir, sequence, sequence+'.bag'))
+        self.bag_filename = Path(os.path.join(data_dir, sequence+'.bag'))
         self.sequence_id = sequence
         if self.bag_filename.is_file():
             self.bag = AnyReader([self.bag_filename])
@@ -50,26 +52,26 @@ class ViralDataset:
 
         # self.topic = self.check_topic(topic)
         self.lidar_topic = lidar_topics['master_lidar']
+        # self.lidar_topic_h = lidar_topics['master_lidar']
+        # self.lidar_topic_v = lidar_topics['slave_lidar']
         self.imu_topic = imu_topic
         self.camera_topic = camera_topic
 
+        # print(self.lidar_topic, self.imu_topic)
+
+        # self.parse_calibratin(calibration)
+        
         self.n_scans = self.bag.topics[self.lidar_topic].msgcount
         self.n_images = self.bag.topics[self.camera_topic].msgcount
-        # self.n_imus = self.bag.topics[self.imu_topic].msgcount
 
-        # # limit connections to selected topic
-        # lidar_connections = [x for x in self.bag.connections if x.topic == self.lidar_topic]
-        # camera_connections = [x for x in self.bag.connections if x.topic == self.camera_topic]
-        # imu_connections = [x for x in self.bag.connections if x.topic == self.imu_topic]
-        # self.lidar_msgs = self.bag.messages(connections=lidar_connections)
-        # self.camera_msgs = self.bag.messages(connections=camera_connections)
-        # self.imu_msgs = self.bag.messages(connections=imu_connections)
+        # print(self.n_scans, self.n_images)
 
         connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.camera_topic, self.imu_topic]]
         self.msgs = self.bag.messages(connections=connections)
         self.pointcloud_timestamps = []
         self.image_timestamps = []
-    
+
+
         # imu parameters
         self.gravity = calibration['gravity']
         self.accel_std = calibration['accel_std']
@@ -112,23 +114,10 @@ class ViralDataset:
             (self.width, self.height),
             cv2.CV_32FC1,
         )
-
-        # # depth parameters
-        # self.has_depth = True if "depth_scale" in calibration.keys() else False
-        # self.depth_scale = calibration["depth_scale"] if self.has_depth else None
-
-        # # Default scene scale
-        # nerf_normalization_radius = 5
-        # self.scene_info = {
-        #     "nerf_normalization": {
-        #         "radius": nerf_normalization_radius,
-        #         "translation": np.zeros(3),
-        #     },
-        # }
     
     def focal2fov(self, focal, pixels):
         return 2 * math.atan(pixels / (2 * focal))
-
+    
     def __del__(self):
         if hasattr(self, "bag"):
             self.bag.close()
@@ -141,20 +130,22 @@ class ViralDataset:
         connection, timestamp, rawdata = next(self.msgs)
         
         msg = self.bag.deserialize(rawdata, connection.msgtype)
+        # print(connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
             points, point_ts, min_ts, max_ts = read_point_cloud(msg)
-            # print(min_ts, max_ts, timestamp)
-            # min_ts=0.
-            # max_ts~=0.1s
-            # timestamp is the first point?
             point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
-            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
-            self.pointcloud_timestamps.append(timestamp)
-        elif connection.msgtype=='sensor_msgs/msg/Image':
+            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(max_ts)} 
+            self.pointcloud_timestamps.append(max_ts)
+        elif connection.msgtype=='livox_ros_driver2/msg/CustomMsg':
+            points, point_ts, min_ts, max_ts = read_point_cloud_livox(msg)
+            # print(min_ts, max_ts)
+            point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
+            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)+self.to_sec(max_ts)} 
+            self.pointcloud_timestamps.append(timestamp + max_ts)
+        elif connection.msgtype=='sensor_msgs/msg/CompressedImage':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            image = message_to_cvimage(msg, 'mono8')
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = compressed_image_to_cvimage(msg,'rgb8')
             if self.disorted:
                 image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
             frame_data = {"image": image, "image_ts": self.to_sec(timestamp)}
@@ -165,13 +156,13 @@ class ViralDataset:
             # orientation_y = msg.orientation.y
             # orientation_z = msg.orientation.z
             # orientation_w = msg.orientation.w
-            linear_acc_x = msg.linear_acceleration.x
-            linear_acc_y = msg.linear_acceleration.y
-            linear_acc_z = msg.linear_acceleration.z
-            ang_vel_x = msg.angular_velocity.x
+            linear_acc_x = msg.linear_acceleration.x * abs(self.gravity)
+            linear_acc_y = msg.linear_acceleration.y * abs(self.gravity)
+            linear_acc_z = msg.linear_acceleration.z * abs(self.gravity)
+            ang_vel_x = msg.angular_velocity.x 
             ang_vel_y = msg.angular_velocity.y
             ang_vel_z = msg.angular_velocity.z
-            reading = [ang_vel_x, ang_vel_y, ang_vel_z, linear_acc_x, linear_acc_y, linear_acc_z]
+            reading = [ang_vel_x, ang_vel_y, ang_vel_z, linear_acc_x, linear_acc_y, linear_acc_z] 
             frame_data = {"imu": reading, "imu_ts": self.to_sec(timestamp)}
             
         return frame_data
@@ -223,7 +214,7 @@ class ViralDataset:
 
 
 if __name__ == '__main__':
-    viral = ViralDataset(data_dir=Path('/data0/dataset/VIRAL/eee_03/eee_03.bag'), lidar_topic='/os1_cloud_node1/points',imu_topic='/imu/imu', camera_topic='/left/image_raw')
+    viral = LivoxDataset(data_dir=Path('/data0/dataset/VIRAL/eee_03/eee_03.bag'), lidar_topic='/os1_cloud_node1/points',imu_topic='/imu/imu', camera_topic='/left/image_raw')
     while 1:
         connection, timestamp, rawdata = next(viral.msgs)
         

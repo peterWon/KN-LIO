@@ -59,10 +59,10 @@ pgo:
 optimizer: # mapper
   batch_size: 16384     
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ./cad/camera.ply
-  mesh_freq_frame: 500 # reconstruct the mesh every x frames
+  mesh_freq_frame: 10 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
   save_map: False

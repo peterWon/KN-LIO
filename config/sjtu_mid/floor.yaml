@@ -1,0 +1,4 @@
+base_config: config/sjtu_mid/sjtu_mid.yaml
+
+setting:
+  data_loader_seq: '2000-01-01-14-23-00'
