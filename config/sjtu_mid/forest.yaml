@@ -1,10 +1,10 @@
 base_config: config/sjtu_mid/sjtu_mid.yaml
 
 setting:
-  data_loader_seq: '2000-01-01-14-11-34'
+  data_loader_seq: 'forest'
 
 process:
   min_range_m: 0.5
   max_range_m: 50.0
-  vox_down_m: 0.06
-  min_z_m: -2.5
+  vox_down_m: 0.08
+  min_z_m: -0.5

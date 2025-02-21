@@ -12,7 +12,7 @@ setting:
   imu_topic: '/livox/imu_192_168_1_103'
   output_root: "./experiments/sjtu_mid/"
 calibration:
-  gravity: 9.805
+  gravity: 9.79
   accel_std: 0.1
   accel_rw: 0.0001
   gyro_std: 0.1
