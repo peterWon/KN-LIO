@@ -27,6 +27,8 @@ from evo.tools import plot
 from evo.tools.plot import PlotMode
 from evo.tools.settings import SETTINGS
 from evo.core import lie_algebra as lie
+import seaborn as sns
+sns.set_style("whitegrid")
 
 def quat2rotm(q):
     return quat2rotm_(q)[0:3, 0:3]
@@ -182,6 +184,8 @@ t_B_prism = np.array([-0.293656, -0.012288, -0.273095]).reshape((3,1))
 
 # Search for the sequence name
 sequence_name = 'forest'
+# plot_mode = evo.tools.plot.PlotMode.yz #statir
+plot_mode = evo.tools.plot.PlotMode.xy
 gndtr = os.path.join(gtgen_res_path, sequence_name, 'odometry.viral')
 
 gndtr_pose_stamped = load_csv_modify(gndtr)
@@ -190,11 +194,10 @@ t_max = getGTMaxTime(gndtr_pose_stamped)
 
 # print(t_min, t_max)
 
-algo_compare = ['knlio','fast_lio','lio_sam','D-LIOM','pinslam']#, 'semi-knlio'
-color = {'knlio':'#F0988C', 'fast_lio': '#A1A9D0', 'pinslam': '#CFEAF1', 'D-LIOM': '#F6CAE5', 'lio_sam':'#9E9E9E'}
-name = {'knlio':'KN-LIO', 'fast_lio': 'Fast-LIO2', 'pinslam': 'PIN-SLAM', 'D-LIOM': 'D-LIOM', 'lio_sam':'LIO-SAM'}
-# plot_mode = evo.tools.plot.PlotMode.yz #statir
-plot_mode = evo.tools.plot.PlotMode.xy
+algo_compare = ['fast_lio','lio_sam','D-LIOM','semi_knlio','knlio']#, ,pinslam
+color = {'knlio':'#A1A9D0', 'fast_lio': '#F0988C', 'semi_knlio': '#CFEAF1', 'D-LIOM': '#F6CAE5', 'lio_sam':'#9E9E9E','pinslam':'#EAB883'}
+name = {'knlio':'KN-LIO', 'fast_lio': 'Fast-LIO2', 'pinslam': 'PIN-SLAM', 'D-LIOM': 'D-LIOM', 'lio_sam':'LIO-SAM', 'semi_knlio':'Semi-KN-LIO'}
+
 
 fig = plt.figure()
 ax = evo.tools.plot.prepare_axis(fig, plot_mode)
@@ -203,7 +206,7 @@ num_poses_to_align = 500
 
 for algo in algo_compare:
     est = None
-    if algo in ['knlio', 'semi-knlio', 'pinslam']:
+    if algo in ['knlio', 'semi_knlio', 'pinslam']:
         est = os.path.join(result_path, algo, sequence_name, 'odometry.viral')
     elif algo in ['fast_lio', 'lio_sam', 'D-LIOM']:
         est = os.path.join(result_path, algo, sequence_name, 'opt_odom.csv')
@@ -246,6 +249,6 @@ for algo in algo_compare:
     # if rmse < 3.0:
     evo.tools.plot.traj(ax, plot_mode, traj_est, "--", color[algo], name[algo])
     
-plt.tight_layout()
-plt.autoscale()
+# plt.tight_layout()
+# plt.autoscale()
 fig.savefig('/media/wz/2C96A0A60155E8F8/Dataset/SJTU-MID/traj/' + sequence_name+'.pdf')
