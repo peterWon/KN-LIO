@@ -29,47 +29,50 @@ import struct
 import numpy as np
 from pathlib import Path
 import natsort
-from utils.point_cloud2 import read_point_cloud
+from utils.point_cloud2 import read_point_cloud_with_intensity
 
 from rosbags.highlevel import AnyReader
-from rosbags.image import compressed_image_to_cvimage, message_to_cvimage
+from rosbags.image import message_to_cvimage
 import cv2
 from typing import cast
 import math
 
-class NewerCollegeDataset:
+import numpy as np
+from pypcd4 import PointCloud
+import click
+import pathlib
+from perturb_pointcloud.corruption import Corruption
+
+class ViralDataset:
     def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
+        self.bag_filename = Path(os.path.join(data_dir, sequence, sequence+'.bag'))
         self.sequence_id = sequence
-        self.bag_dir = os.path.join(data_dir, sequence, 'rosbag')
-        bagfiles = [Path(path) for path in glob.glob(os.path.join(self.bag_dir, "*.bag"))]
-        if len(bagfiles) > 0:
-            self.bag = AnyReader(bagfiles)
+        if self.bag_filename.is_file():
+            self.bag = AnyReader([self.bag_filename])
             self.bag.open()
-            print('Open rosbag: {}'.format(bagfiles[0]))
+            print('Open rosbag: {}'.format(self.bag_filename))
         else:
-            raise FileNotFoundError('Open rosbag: {} failed!'.format(bagfiles[0]))
-        
+            raise FileNotFoundError('Open rosbag: {} failed!'.format(self.bag_filename))
+
+        # self.topic = self.check_topic(topic)
         self.lidar_topic = lidar_topics['master_lidar']
         self.imu_topic = imu_topic
         self.camera_topic = camera_topic
 
-        
-        
-        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.camera_topic, self.imu_topic]]
-        
-        # using the sub-sequence as ncd_example. timestamps are from the ground_truth of 02_long_experiment
-        self.start_timestamp = 1583840260*1e9+539731968 #490-th lidar frame, several more frames for initialization.
-        self.stop_timestamp  = 1583840391*1e9+537008896 #1800-th lidar frame
-        # print((self.start_timestamp-self.bag.start_time)*1e-9) 48.915791104
-        # print((self.stop_timestamp-self.start_timestamp)*1e-9) 130.99727692800002
-        
-        # self.msgs = self.bag.messages(connections=connections, start=self.start_timestamp,stop=self.stop_timestamp)
-        self.msgs = self.bag.messages(connections=connections)
+        self.n_scans = self.bag.topics[self.lidar_topic].msgcount
+        self.n_images = self.bag.topics[self.camera_topic].msgcount
+        # self.n_imus = self.bag.topics[self.imu_topic].msgcount
 
-        lidar_connection = [x for x in self.bag.connections if x.topic==self.lidar_topic]
-        self.lidar_msgs = list(self.bag.messages(connections=lidar_connection))#start=self.start_timestamp, stop=self.stop_timestamp)
-        self.n_scans = len(self.lidar_msgs)
-        # self.n_images = self.bag.topics[self.camera_topic].msgcount
+        # # limit connections to selected topic
+        # lidar_connections = [x for x in self.bag.connections if x.topic == self.lidar_topic]
+        # camera_connections = [x for x in self.bag.connections if x.topic == self.camera_topic]
+        # imu_connections = [x for x in self.bag.connections if x.topic == self.imu_topic]
+        # self.lidar_msgs = self.bag.messages(connections=lidar_connections)
+        # self.camera_msgs = self.bag.messages(connections=camera_connections)
+        # self.imu_msgs = self.bag.messages(connections=imu_connections)
+
+        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.camera_topic, self.imu_topic]]
+        self.msgs = self.bag.messages(connections=connections)
         self.pointcloud_timestamps = []
         self.image_timestamps = []
     
@@ -81,7 +84,7 @@ class NewerCollegeDataset:
         self.gyro_rw = calibration['gyro_rw']
 
         # lidar parameters
-        self.T_IL = np.array(calibration['T_imu_lidar']).reshape(4,4)
+        self.T_IL = np.array(calibration['T_imu_hlidar']).reshape(4,4)
 
         # camera parameters
         self.T_IC = np.array(calibration['T_imu_camera']).reshape(4,4)
@@ -115,6 +118,21 @@ class NewerCollegeDataset:
             (self.width, self.height),
             cv2.CV_32FC1,
         )
+
+        self.corrupt = Corruption()
+
+        # # depth parameters
+        # self.has_depth = True if "depth_scale" in calibration.keys() else False
+        # self.depth_scale = calibration["depth_scale"] if self.has_depth else None
+
+        # # Default scene scale
+        # nerf_normalization_radius = 5
+        # self.scene_info = {
+        #     "nerf_normalization": {
+        #         "radius": nerf_normalization_radius,
+        #         "translation": np.zeros(3),
+        #     },
+        # }
     
     def focal2fov(self, focal, pixels):
         return 2 * math.atan(pixels / (2 * focal))
@@ -122,7 +140,7 @@ class NewerCollegeDataset:
     def __del__(self):
         if hasattr(self, "bag"):
             self.bag.close()
-            print('Closed rosbag.')
+            print('Close rosbag: {}'.format(self.bag_filename))
 
     def __len__(self):
         return self.n_scans
@@ -133,17 +151,17 @@ class NewerCollegeDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
+            points, point_ts, min_ts, max_ts = read_point_cloud_with_intensity(msg)
+            # print(min_ts, max_ts, timestamp)
+            # min_ts=0.
+            # max_ts~=0.1s
+            # timestamp is the first point?
             point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
-            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
+            
+            augment_points = getattr(Corruption, 'snow')(points, 3)[:, :3]
+            # print(augment_points.shape)
+            frame_data = {"points": augment_points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
             self.pointcloud_timestamps.append(timestamp)
-        elif connection.msgtype=='sensor_msgs/msg/CompressedImage':
-            # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            image = compressed_image_to_cvimage(msg,'rgb8')
-            if self.disorted:
-                image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
-            frame_data = {"image": image, "image_ts": self.to_sec(timestamp)}
-            self.image_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/Image':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
             image = message_to_cvimage(msg, 'mono8')

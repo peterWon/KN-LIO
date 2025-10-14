@@ -112,7 +112,45 @@ def read_point_cloud(msg: PointCloud2) -> Tuple[np.ndarray, np.ndarray]:
 
     # Remove nan if any
     points = points[~np.any(np.isnan(points), axis=1)]
+    min_timestamp = 0
+    max_timestamp = 0.1
+    if t_field:
+        timestamps = points_structured[t_field].astype(np.float64)
+        min_timestamp = np.min(timestamps)
+        max_timestamp = np.max(timestamps)
+        if min_timestamp == max_timestamp:
+            timestamps = None
+        # else:
+        #     timestamps = (timestamps - min_timestamp) / (max_timestamp - min_timestamp) # normalized to 0-1
+    else:
+        timestamps = None
+    return points.astype(np.float64), timestamps, min_timestamp, max_timestamp
 
+def read_point_cloud_with_intensity(msg: PointCloud2) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Extract poitns and timestamps from a PointCloud2 message.
+
+    :return: Tuple of [points, timestamps]
+        points: array of x, y z i points, shape: (N, 4)
+        timestamps: array of per-pixel timestamps, shape: (N,)
+    """
+    field_names = ["x", "y", "z", "intensity"]
+    t_field = None
+    for field in msg.fields:
+        if field.name in ["t", "timestamp", "time", "ts", "timestamps"]:
+            t_field = field.name
+            field_names.append(t_field)
+            break
+
+    points_structured = read_points(msg, field_names=field_names)
+    points = np.column_stack(
+        [points_structured["x"], points_structured["y"], points_structured["z"], points_structured["intensity"]]
+    )
+
+    # Remove nan if any
+    points = points[~np.any(np.isnan(points), axis=1)]
+    min_timestamp = 0
+    max_timestamp = 0.1
     if t_field:
         timestamps = points_structured[t_field].astype(np.float64)
         min_timestamp = np.min(timestamps)

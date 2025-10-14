@@ -1,30 +1,30 @@
 setting:
-  name: "test_viral"
+  name: "tartanair"
   device: "cuda"
   gpu_id: 0
   use_dataloader: True
-  data_loader_name: 'viral_perturb'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
-  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/NTU-VIRAL/'
+  data_loader_name: 'tartanair'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
+  data_loader_seq: 'TartanAir_lidar_factory_noise0'
+  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/TartanAir/rosbag/'
   lidar_topics: 
-    master_lidar: '/os1_cloud_node1/points'
-    slave_lidar: '/os1_cloud_node2/points'
-  camera_topic: '/left/image_raw'
-  imu_topic: '/imu/imu'
-  output_root: "./experiments/viralxxx/"
+    master_lidar: '/tartanair/velodyne'
+  camera_topic: ''
+  imu_topic: '/tartanair/imu'
+  output_root: "./experiments/tartanair/"
 calibration:
   gravity: 9.781
-  accel_std: 0.0365432018302
-  accel_rw: 0.000433
-  gyro_std: 0.00367396706572
-  gyro_rw: 2.66e-05
-  T_imu_hlidar: [ 1.0,  0.0,  0.0, -0.050,
-           0.0,  1.0,  0.0,  0.000,
-           0.0,  0.0,  1.0,  0.055,
+  accel_std: 0.1
+  accel_rw: 0.0001
+  gyro_std: 0.1
+  gyro_rw: 0.0001
+  T_imu_hlidar: [ 1.0,  0.0,  0.0, 0,
+           0.0,  1.0,  0.0,  0,
+           0.0,  0.0,  1.0,  0,
            0.0,  0.0,  0.0,  1.000 ]
-  T_imu_vlidar: [ -1.0,  0.0,  0.0, -0.550,
-           0.0,  0.0,  1.0,  0.030,
-           0.0,  1.0,  0.0,  0.050,
-           0.0,  0.0,  0.0,  1.000 ]
+  T_imu_vlidar: [ -1.0,  0.0,  0.0, 0,
+           0.0,  0.0,  1.0,  0,
+           0.0,  1.0,  0.0,  0,
+           0.0,  0.0,  0.0,  1]
   T_imu_camera: [ 0.02183084, -0.01312053,  0.99967558,  0.00552943,
            0.99975965,  0.00230088, -0.02180248, -0.12431302,
           -0.00201407,  0.99991127,  0.01316761,  0.01614686,
@@ -82,12 +82,12 @@ pgo:
 optimizer: # mapper
   batch_size: 16384     
 eval:
-  o3d_vis_on: False # visualize the mapping or not
+  o3d_vis_on: True # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ''
-  mesh_freq_frame: 1000 # reconstruct the mesh every x frames
+  mesh_freq_frame: 10 # reconstruct the mesh every x frames
   mesh_min_nn: 9
   save_mesh: True
-  save_map: True
+  save_map: False
   save_merged_pc: False
-  log_freq_frame: 1000 
+  log_freq_frame: 1000

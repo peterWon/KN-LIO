@@ -38,6 +38,7 @@ from utils.tools import (
 from utils.tracker import Tracker
 from utils.visualizer import MapVisualizer
 
+import psutil
 '''
     📍PIN-SLAM: LiDAR SLAM Using a Point-Based Implicit Neural Representation for Achieving Global Map Consistency
      Y. Pan et al. from IPB
@@ -63,7 +64,22 @@ parser.add_argument('--save_merged_pc', '-p', action='store_true', help='Save th
 
 args, unknown = parser.parse_known_args()
 
+def log_memory_usage(memory_dir, memory_list, name):
+        out_path = os.path.join(memory_dir, name+".txt")
+        np.savetxt(out_path, np.array(memory_list, dtype=np.float32))
 def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=None, *_, **__):
+    byte2mb = 1024*1024
+    max_memory_allocated_mb = []
+    memory_allocated_mb = []
+    memory_reserved_with_cache_mb = []
+    memory_reserved_mb = []
+    CPU_shared_memory_mb = []
+    CPU_memory_mb = []
+
+    preprocessing_cost_ms = []
+    tracking_cost_ms = []
+    mapping_cost_ms = []
+    bundle_adjustment_cost_ms = []
 
     config = Config()
     if config_path is not None: # use as a function
@@ -175,6 +191,14 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
     initialized_dataset = False
     pbar = tqdm(total = dataset.total_pc_count + 1) 
     while frame_id < dataset.total_pc_count:
+        max_memory_allocated_mb.append(torch.cuda.max_memory_allocated()/byte2mb)
+        memory_allocated_mb.append(torch.cuda.memory_allocated()/byte2mb)
+        memory_reserved_with_cache_mb.append(torch.cuda.memory_reserved()/byte2mb)
+        CPU_shared_memory_mb.append(psutil.virtual_memory().shared/byte2mb)
+        CPU_memory_mb.append(psutil.Process(os.getpid()).memory_info().rss/byte2mb)
+        torch.cuda.empty_cache()
+        memory_reserved_mb.append(torch.cuda.memory_reserved()/byte2mb)
+
         frame_data = dataset.read_next_datastream()
         if frame_data is None:
             dataset.write_results_log()
@@ -191,9 +215,12 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             point_ts = frame_data["point_ts"]
             frame_ts = frame_data["frame_ts"]
             
+            T_preprocess_0 = get_time()
             dataset.cur_point_cloud_torch = torch.tensor(points, device=dataset.device, dtype=dataset.dtype)
             dataset.cur_point_ts_torch = torch.tensor(point_ts, device=dataset.device, dtype=dataset.dtype)
             valid_frame = dataset.preprocess_scan(frame_id)
+            T_preprocess_1 = get_time()
+            preprocessing_cost_ms.append((T_preprocess_1 - T_preprocess_0)*1e3)
 
             if not valid_frame:
                 dataset.write_results_log()
@@ -206,10 +233,9 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                                                 frame_ts, dataset.cur_source_points, dataset.cur_point_ts_torch,
                                                 dataset.cur_source_colors, dataset.cur_source_normals, dataset.cur_pose_guess_torch)
             T_eet = get_time()
-            # print('Tracking time:', (T_eet-T_sst)*1e3)
+            tracking_cost_ms.append((T_eet-T_sst)*1e3)
+
             dataset.lose_track = not valid_flag
-            
-            
 
             if not initialized_dataset: 
                 # TODO
@@ -257,7 +283,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                     T_ss = get_time()
                     mapper.bundle_adjustment(config.ba_iters, config.ba_frame)
                     T_ee = get_time()
-                    # print('BA time: ', (T_ee-T_ss)*1e3)
+                    bundle_adjustment_cost_ms.append((T_ee-T_ss)*1e3)
 
                 
                 # mapping with fixed poses (every frame)
@@ -266,7 +292,7 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
                     T_ssm =get_time()
                     mapper.mapping(cur_iter_num) 
                     T_eem =get_time()
-                    # print('Mapping time: ', (T_eem-T_ssm)*1e3)
+                    mapping_cost_ms.append((T_eem-T_ssm)*1e3)
                 
                 T6=get_time()
                 
@@ -417,6 +443,18 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             odom_poses, gt_poses, pgo_poses = dataset.get_poses_np_for_vis()
             o3d_vis.update_traj(dataset.cur_pose_ref, odom_poses, gt_poses, pgo_poses, loop_edges)
     
+    memory_cost_path = os.path.join(run_path, "memory")
+    time_cost_path = os.path.join(run_path, "timecost")
+    log_memory_usage(memory_cost_path, max_memory_allocated_mb, 'max_memory_allocated_mb')
+    log_memory_usage(memory_cost_path, memory_allocated_mb, 'memory_allocated_mb')
+    log_memory_usage(memory_cost_path, memory_reserved_with_cache_mb, 'memory_reserved_with_cache_mb')
+    log_memory_usage(memory_cost_path, memory_reserved_mb, 'memory_reserved_mb')
+    log_memory_usage(memory_cost_path, CPU_memory_mb, 'CPU_memory_mb')
+    log_memory_usage(memory_cost_path, CPU_shared_memory_mb, 'CPU_shared_memory_mb')
+    log_memory_usage(time_cost_path, preprocessing_cost_ms, 'preprocessing_cost_ms')
+    log_memory_usage(time_cost_path, tracking_cost_ms, 'tracking_cost_ms')
+    log_memory_usage(time_cost_path, mapping_cost_ms, 'mapping_cost_ms')
+    log_memory_usage(time_cost_path, bundle_adjustment_cost_ms, 'bundle_adjustment_cost_ms')
     print('Exit.')
 
 if __name__ == "__main__":

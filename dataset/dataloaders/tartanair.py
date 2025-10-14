@@ -24,7 +24,7 @@
 import glob
 import os
 import sys
-# sys.path.insert(0, '/home/wz/GS_ws/PIN_SLAM/')
+sys.path.insert(0, '/home/wz/codes/ros_ws/lios/pin-lio/')
 import struct
 import numpy as np
 from pathlib import Path
@@ -32,46 +32,30 @@ import natsort
 from utils.point_cloud2 import read_point_cloud
 
 from rosbags.highlevel import AnyReader
-from rosbags.image import compressed_image_to_cvimage, message_to_cvimage
+from rosbags.image import message_to_cvimage
 import cv2
 from typing import cast
 import math
 
-class NewerCollegeDataset:
+class TartanAirDataset:
     def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
-        self.sequence_id = sequence
-        self.bag_dir = os.path.join(data_dir, sequence, 'rosbag')
-        bagfiles = [Path(path) for path in glob.glob(os.path.join(self.bag_dir, "*.bag"))]
-        if len(bagfiles) > 0:
-            self.bag = AnyReader(bagfiles)
+        self.bag_filename = Path(os.path.join(data_dir, sequence+'.bag'))
+        if self.bag_filename.is_file():
+            self.bag = AnyReader([self.bag_filename])
             self.bag.open()
-            print('Open rosbag: {}'.format(bagfiles[0]))
+            print('Open rosbag: {}'.format(self.bag_filename))
         else:
-            raise FileNotFoundError('Open rosbag: {} failed!'.format(bagfiles[0]))
-        
+            raise FileNotFoundError('Open rosbag: {} failed!'.format(self.bag_filename))
+
+        # self.topic = self.check_topic(topic)
         self.lidar_topic = lidar_topics['master_lidar']
         self.imu_topic = imu_topic
-        self.camera_topic = camera_topic
 
-        
-        
-        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.camera_topic, self.imu_topic]]
-        
-        # using the sub-sequence as ncd_example. timestamps are from the ground_truth of 02_long_experiment
-        self.start_timestamp = 1583840260*1e9+539731968 #490-th lidar frame, several more frames for initialization.
-        self.stop_timestamp  = 1583840391*1e9+537008896 #1800-th lidar frame
-        # print((self.start_timestamp-self.bag.start_time)*1e-9) 48.915791104
-        # print((self.stop_timestamp-self.start_timestamp)*1e-9) 130.99727692800002
-        
-        # self.msgs = self.bag.messages(connections=connections, start=self.start_timestamp,stop=self.stop_timestamp)
+        self.n_scans = self.bag.topics[self.lidar_topic].msgcount
+
+        connections = [x for x in self.bag.connections if x.topic in [self.lidar_topic, self.imu_topic]]
         self.msgs = self.bag.messages(connections=connections)
-
-        lidar_connection = [x for x in self.bag.connections if x.topic==self.lidar_topic]
-        self.lidar_msgs = list(self.bag.messages(connections=lidar_connection))#start=self.start_timestamp, stop=self.stop_timestamp)
-        self.n_scans = len(self.lidar_msgs)
-        # self.n_images = self.bag.topics[self.camera_topic].msgcount
         self.pointcloud_timestamps = []
-        self.image_timestamps = []
     
         # imu parameters
         self.gravity = calibration['gravity']
@@ -81,7 +65,8 @@ class NewerCollegeDataset:
         self.gyro_rw = calibration['gyro_rw']
 
         # lidar parameters
-        self.T_IL = np.array(calibration['T_imu_lidar']).reshape(4,4)
+        self.T_IL = np.array(calibration['T_imu_hlidar']).reshape(4,4)
+
 
         # camera parameters
         self.T_IC = np.array(calibration['T_imu_camera']).reshape(4,4)
@@ -122,7 +107,7 @@ class NewerCollegeDataset:
     def __del__(self):
         if hasattr(self, "bag"):
             self.bag.close()
-            print('Closed rosbag.')
+            print('Close rosbag: {}'.format(self.bag_filename))
 
     def __len__(self):
         return self.n_scans
@@ -133,25 +118,17 @@ class NewerCollegeDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
-            point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
+            points, point_ts, min_ts, max_ts = read_point_cloud(msg)
+            # print(min_ts, max_ts, timestamp)
+            # min_ts=0.
+            # max_ts~=0.1s
+            # timestamp is the first point?
+            if point_ts is None:
+                point_ts = np.ones(points.shape[0])
+            else:
+                point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
             frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
             self.pointcloud_timestamps.append(timestamp)
-        elif connection.msgtype=='sensor_msgs/msg/CompressedImage':
-            # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            image = compressed_image_to_cvimage(msg,'rgb8')
-            if self.disorted:
-                image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
-            frame_data = {"image": image, "image_ts": self.to_sec(timestamp)}
-            self.image_timestamps.append(timestamp)
-        elif connection.msgtype=='sensor_msgs/msg/Image':
-            # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads
-            image = message_to_cvimage(msg, 'mono8')
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            if self.disorted:
-                image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
-            frame_data = {"image": image, "image_ts": self.to_sec(timestamp)}
-            self.image_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/Imu':
             # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Imu.html
             # orientation_x = msg.orientation.x
@@ -216,7 +193,10 @@ class NewerCollegeDataset:
 
 
 if __name__ == '__main__':
-    viral = ViralDataset(data_dir=Path('/data0/dataset/VIRAL/eee_03/eee_03.bag'), lidar_topic='/os1_cloud_node1/points',imu_topic='/imu/imu', camera_topic='/left/image_raw')
+    viral = TartanAirDataset(data_dir=Path('/media/wz/2C96A0A60155E8F8/Dataset/TartanAir/rosbag/'), \
+                             sequence="TartanAir_lidar_factory_noise0", \
+                                lidar_topics={'master_lidar': '/tartanair/velodyne'},\
+                                imu_topic='/tartanair/imu', calibration={})
     while 1:
         connection, timestamp, rawdata = next(viral.msgs)
         

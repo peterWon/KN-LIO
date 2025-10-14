@@ -39,7 +39,7 @@ gtgen_res_path = '/home/wz/Data/VIRAL/ntuviral_gt/'
 # !git clone https://github.com/ntu-aris/fastlio2_sample
 
 # Set the path to the logs of your slam estimate
-slam_est_path = '/home/wz/Data/VIRAL/LOG/knlio/'
+slam_est_path = '/home/wz/codes/ros_ws/lios/slamesh_ws/log/'
 
 # Offset from body center to the prism
 t_B_prism = np.array([-0.293656, -0.012288, -0.273095]).reshape((3,1))
@@ -53,13 +53,13 @@ min_completeness = 5.0
 
 # Search for the sequence name
 gt_basedir = '/home/wz/Data/VIRAL/ntuviral_gt/'
-latest_log = 'spms_01'
+latest_log = 'eee_01'
 
 # sequence_name = latest_log.split('sult_')[1]
 sequence_name = latest_log
 
 gndtr = os.path.join(gt_basedir, sequence_name, 'ground_truth.csv')
-est = os.path.join(slam_est_path, latest_log, '4181_odom_poses.viral')
+est = os.path.join(slam_est_path, latest_log, 'opt_odom.csv')
 
 print(gndtr)
 print(est)
@@ -101,6 +101,8 @@ def getGTMaxTime(gndtr_pose_stp):
 def extract_est_data(data, t_min, t_max, path = None):
     # print(t_min, 'to', t_max)
     t = data[:, 0]
+    if t[0]>1e12:
+        t = data[:, 0]/1e9
     P = data[:, 3:6]
     Q = data[:, [9, 6, 7, 8]]
     idx_intime = [ idx for idx in range(0, len(t)) if t[idx] >= t_min and t[idx] <= t_max ]
@@ -203,6 +205,7 @@ t_max = getGTMaxTime(gndtr_pose_stamped)
 print(t_min, t_max)
 
 est_pose_data = np.loadtxt(est, delimiter=',', skiprows=1)
+# print(est_pose_data.shape)
 est_t, est_P, est_Q = extract_est_data(est_pose_data, t_min, t_max)
 traj_est = make_traj(gndtr_pose_stamped[:,0], est_t, est_P, est_Q)
 traj_gt = makeGTTraj(gndtr_pose_stamped, traj_est)

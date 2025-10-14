@@ -68,10 +68,14 @@ def setup_experiment(config: Config, argv=None, debug_mode: bool = False):
         map_path = os.path.join(run_path, "map")
         model_path = os.path.join(run_path, "model")
         log_path = os.path.join(run_path, "log")
+        memory_path = os.path.join(run_path, "memory")
+        timecost_path = os.path.join(run_path, "timecost")
         os.makedirs(mesh_path, access, exist_ok=True)
         os.makedirs(map_path, access, exist_ok=True)
         os.makedirs(model_path, access, exist_ok=True)
         os.makedirs(log_path, access, exist_ok=True)
+        os.makedirs(memory_path, access, exist_ok=True)
+        os.makedirs(timecost_path, access, exist_ok=True)
 
         if config.wandb_vis_on:
             # set up wandb
