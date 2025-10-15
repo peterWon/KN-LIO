@@ -29,13 +29,14 @@ import struct
 import numpy as np
 from pathlib import Path
 import natsort
-from utils.point_cloud2 import read_point_cloud
+from utils.point_cloud2 import read_point_cloud_with_intensity
 
 from rosbags.highlevel import AnyReader
 from rosbags.image import compressed_image_to_cvimage, message_to_cvimage
 import cv2
 from typing import cast
 import math
+from perturb_pointcloud.corruption import Corruption
 
 class NewerCollegeDataset:
     def __init__(self, data_dir: str, sequence: str, lidar_topics: dict, imu_topic: str, camera_topic: str, calibration: dict, *_, **__):
@@ -132,9 +133,10 @@ class NewerCollegeDataset:
         msg = self.bag.deserialize(rawdata, connection.msgtype)
 
         if connection.msgtype=='sensor_msgs/msg/PointCloud2':
-            points, point_ts, min_ts, max_ts = read_point_cloud(msg) #point_ts is normalized to 0~1 in read_point_cloud()
+            points, point_ts, min_ts, max_ts = read_point_cloud_with_intensity(msg) #point_ts is normalized to 0~1 in read_point_cloud()
             point_ts = (point_ts - min_ts) / (max_ts - min_ts) # normalized to 0-1
-            frame_data = {"points": points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
+            augment_points = getattr(Corruption, 'fog')(points, 3)[:, :3]
+            frame_data = {"points": augment_points, "point_ts": point_ts, "frame_ts": self.to_sec(timestamp)} 
             self.pointcloud_timestamps.append(timestamp)
         elif connection.msgtype=='sensor_msgs/msg/CompressedImage':
             # https://gitlab.com/ternaris/rosbags-image/-/blob/master/src/rosbags/image/image.py?ref_type=heads

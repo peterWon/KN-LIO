@@ -3,13 +3,13 @@ setting:
   device: "cuda"
   gpu_id: 0
   use_dataloader: True
-  data_loader_name: 'ncd'
+  data_loader_name: 'ncd_perturb'
   data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/NewerCollege/'
   lidar_topics: 
     master_lidar: '/os1_cloud_node/points'
   camera_topic: '/camera/infra1/image_rect_raw'
   imu_topic: '/os1_cloud_node/imu'
-  output_root: "./experiments/ncd/"
+  output_root: "./experiments/ncd_perturb/"
 calibration:
   gravity: 9.781
   accel_std: 0.001249
@@ -75,7 +75,7 @@ optimizer: # mapper
   iters: 30
   batch_size: 16384      
 eval:
-  o3d_vis_on: True # visualize the mapping or not
+  o3d_vis_on: False # visualize the mapping or not
   silence_log: True # output the logs or not
   sensor_cad_path: ''
   mesh_freq_frame: 1000 # reconstruct the mesh every x frames
