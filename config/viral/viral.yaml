@@ -1,5 +1,5 @@
 setting:
-  name: "test_viral"
+  name: "viral_perturb"
   device: "cuda"
   gpu_id: 0
   use_dataloader: True
@@ -10,7 +10,7 @@ setting:
     slave_lidar: '/os1_cloud_node2/points'
   camera_topic: '/left/image_raw'
   imu_topic: '/imu/imu'
-  output_root: "./experiments/viralxxx/"
+  output_root: "./experiments/viral_perturb/"
 calibration:
   gravity: 9.781
   accel_std: 0.0365432018302

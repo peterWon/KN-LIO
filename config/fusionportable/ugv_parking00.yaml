@@ -1,0 +1,4 @@
+base_config: config/fusionportable/ugv_base.yaml
+
+setting:
+  data_loader_seq: 'ugv_parking00'

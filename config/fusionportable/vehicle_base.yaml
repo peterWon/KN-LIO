@@ -1,0 +1,88 @@
+setting:
+  name: "fusionportable"
+  device: "cuda"
+  gpu_id: 0
+  use_dataloader: True
+  data_loader_name: 'fusionportable'                  #modify this to switch beteen one-lidar (viral) and two-lidar (viral_hv)
+  data_base_dir: '/media/wz/2C96A0A60155E8F8/Dataset/Portable/rosbag/vehicle/'
+  lidar_topics: 
+    master_lidar: '/os_cloud_node/points'
+  camera_topic: '/stereo/vehicle_frame_left/image_raw/compressed'
+  imu_topic: '/stim300/imu/data_raw'
+  output_root: "./experiments/fusionportable/"
+calibration:
+  gravity: 9.79
+  accel_std: 0.1
+  accel_rw: 0.001
+  gyro_std: 0.1
+  gyro_rw: 0.001
+  T_imu_hlidar: [0.999958,  0.00830745,  0.00371543,   0.0364111,
+                -0.00831234,    0.999964,  0.00130257,   0.0357265,
+                -0.00370449,  -0.0013334,    0.999992,   0.0357985,
+                          0,          0,          0,           1]
+  T_imu_camera: [-0.00751718,  -0.0213269,    0.999744,    0.336219,
+                -0.999966,  -0.0031249,  -0.0075855,    0.339982,
+              0.00328587,   -0.999768,  -0.0213027, -0.00438464,
+                        0,           0,           0,           1]
+  fx: 593.5669
+  fy: 593.8849
+  cx: 513.3945
+  cy: 401.9319
+  width: 1024
+  height: 768
+  distorted: True
+  k1: -0.0998
+  k2: 0.0828
+  p1: 0.0030
+  p2: 0.0011
+process:
+  min_range_m: 2.0
+  max_range_m: 80.0
+  vox_down_m: 0.06
+  min_z_m: -3.5
+sampler:
+  surface_sample_range_m: 0.25 
+  surface_sample_n: 4
+  free_sample_begin_ratio: 0.3
+  free_sample_end_dist_m: 1.0
+  free_front_sample_n: 2
+neuralpoints:
+  voxel_size_m: 0.4
+  feature_dim: 8 
+  query_nn_k: 6
+  search_alpha: 0.2
+  weighted_first: False
+decoder:
+  freeze_after_frame: 40
+  # mlp_hidden_dim: 32
+  # mlp_level: 1
+loss:
+  main_loss_type: bce
+  sigma_sigmoid_m: 0.08
+  loss_weight_on: True
+  dist_weight_scale: 0.8
+  ekional_loss_on: True
+  weight_e: 0.5
+continual:
+  batch_size_new_sample: 1000
+  pool_capacity: 2e7
+tracker:
+  source_vox_down_m: 0.2
+  iter_n: 100
+  GM_grad: 0.1 
+  GM_dist: 0.2 
+pgo:
+  pgo_freq_frame: 20
+  context_cosdist: 0.3
+optimizer: # mapper
+  batch_size: 8192     
+eval:
+  o3d_vis_on: False # visualize the mapping or not
+  silence_log: True # output the logs or not
+  sensor_cad_path: ''
+  mesh_freq_frame: 1000 # reconstruct the mesh every x frames
+  mesh_min_nn: 9
+  save_mesh: True
+  save_map: True
+  save_merged_pc: False
+  log_freq_frame: 1000 

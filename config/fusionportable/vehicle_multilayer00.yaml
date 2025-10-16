@@ -1,0 +1,4 @@
+base_config: config/fusionportable/vehicle_base.yaml
+
+setting:
+  data_loader_seq: 'vehicle_multilayer00'
