@@ -1,0 +1,15 @@
+base_config: config/ncd/ncd_64.yaml
+
+setting:
+  data_loader_seq: '02_long_experiment'
+
+calibration:
+  gravity: 9.79
+  accel_std: 0.3
+  accel_rw: 0.001
+  gyro_std: 0.3
+  gyro_rw: 0.001
+  T_imu_lidar: [-1.0,  0.0,  0.0,  -0.006253,
+                0.0,  -1.0,  0.0,  0.011775,
+                0.0,  0.0,  1.0,  -0.028535,
+                0.0,  0.0,  0.0,  1.0]
