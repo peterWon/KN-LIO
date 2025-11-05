@@ -60,8 +60,7 @@ class NewerCollegeDataset:
         # using the sub-sequence as ncd_example. timestamps are from the ground_truth of 02_long_experiment
         self.start_timestamp = 1583840260*1e9+539731968 #490-th lidar frame, several more frames for initialization.
         self.stop_timestamp  = 1583840391*1e9+537008896 #1800-th lidar frame
-        # print((self.start_timestamp-self.bag.start_time)*1e-9) 48.915791104
-        # print((self.stop_timestamp-self.start_timestamp)*1e-9) 130.99727692800002
+        
         
         self.msgs = self.bag.messages(connections=connections, start=self.start_timestamp,stop=self.stop_timestamp)
 

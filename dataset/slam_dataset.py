@@ -133,8 +133,8 @@ class SLAMDataset(Dataset):
 
     
     def read_next_datastream(self):
-        frame_data = self.loader.__next__()
-        return frame_data
+        # frame_data = self.loader.__next__()
+        # return frame_data
         try:
             frame_data = self.loader.__next__()
             return frame_data

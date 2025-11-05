@@ -35,7 +35,7 @@ from utils.tools import (
     split_chunks,
     transform_torch,
 )
-from utils.tracker import Tracker
+from utils.tracker_semi import Tracker
 from utils.visualizer import MapVisualizer
 
 import psutil
@@ -214,7 +214,6 @@ def run_pin_slam(config_path=None, dataset_name=None, sequence_name=None, seed=N
             points = frame_data["points"] # may also contain intensity or color
             point_ts = frame_data["point_ts"]
             frame_ts = frame_data["frame_ts"]
-            break
             
             T_preprocess_0 = get_time()
             dataset.cur_point_cloud_torch = torch.tensor(points, device=dataset.device, dtype=dataset.dtype)
