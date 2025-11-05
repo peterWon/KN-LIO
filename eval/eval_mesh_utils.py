@@ -141,9 +141,112 @@ def eval_mesh(file_pred, file_trgt, down_sample_res=0.02, threshold=0.05, trunca
 
     _, dist_p = nn_correspondance(verts_trgt, verts_pred, truncation_acc, True) # find nn in ground truth samples for each predict sample -> precision related
     _, dist_r = nn_correspondance(verts_pred, verts_trgt, truncation_com, False) # find nn in predict samples for each ground truth sample -> recall related
-    
+
     dist_p = np.array(dist_p)
     dist_r = np.array(dist_r)
+
+    dist_p_s = np.square(dist_p)
+    dist_r_s = np.square(dist_r)
+
+    dist_p_mean = np.mean(dist_p)
+    dist_r_mean = np.mean(dist_r) 
+
+    dist_p_s_mean = np.mean(dist_p_s)
+    dist_r_s_mean = np.mean(dist_r_s) 
+
+    chamfer_l1 = 0.5 * (dist_p_mean + dist_r_mean)
+    chamfer_l2 = np.sqrt(0.5 * (dist_p_s_mean + dist_r_s_mean))
+
+    precision = np.mean((dist_p < threshold).astype('float')) * 100.0 # %
+    recall = np.mean((dist_r < threshold).astype('float')) * 100.0 # %
+    fscore = 2 * precision * recall / (precision + recall) # %
+    
+    metrics = {'MAE_accuracy (m)': dist_p_mean,
+               'MAE_completeness (m)': dist_r_mean,
+               'Chamfer_L1 (m)': chamfer_l1,
+               'Chamfer_L2 (m)': chamfer_l2, 
+               'Precision [Accuracy] (%)': precision, 
+               'Recall [Completeness] (%)': recall,
+               'F-score (%)': fscore, 
+               'Spacing (m)': down_sample_res,  # evlaution setup
+               'Inlier_threshold (m)': threshold,  # evlaution setup
+               'Outlier_truncation_acc (m)': truncation_acc, # evlaution setup
+               'Outlier_truncation_com (m)': truncation_com  # evlaution setup
+               }
+    return metrics
+
+def draw_error_pcd(file_pred, file_trgt, down_sample_res=0.02, threshold=0.05, truncation_acc=0.50, truncation_com=0.50, gt_bbx_mask_on= True, 
+              mesh_sample_point=10000000, possion_sample_init_factor=5):
+    """ Compute Mesh metrics between prediction and target.
+    Opens the Meshs and runs the metrics
+    Args:
+        file_pred: file path of prediction (should be mesh)
+        file_trgt: file path of target (shoud be point cloud)
+        down_sample_res: use voxel_downsample to uniformly sample mesh points
+        threshold: distance threshold used to compute precision/recall
+        truncation_acc: points whose nearest neighbor is farther than the distance would not be taken into account (take pred as reference)
+        truncation_com: points whose nearest neighbor is farther than the distance would not be taken into account (take trgt as reference)
+        gt_bbx_mask_on: use the bounding box of the trgt as a mask of the pred mesh
+        mesh_sample_point: number of the sampling points from the mesh
+        possion_sample_init_factor: used for possion uniform sampling, check open3d for more details (deprecated)
+    Returns:
+
+    Returns:
+        Dict of mesh metrics (chamfer distance, precision, recall, f1 score, etc.)
+    """
+
+    mesh_pred = o3d.io.read_triangle_mesh(file_pred)
+
+    pcd_trgt = o3d.io.read_point_cloud(file_trgt)
+
+    # (optional) filter the prediction outside the gt bounding box (since gt sometimes is not complete enough)
+    if gt_bbx_mask_on: 
+        trgt_bbx = pcd_trgt.get_axis_aligned_bounding_box()
+        min_bound = trgt_bbx.get_min_bound()
+        min_bound[2]-=down_sample_res
+        max_bound = trgt_bbx.get_max_bound()
+        max_bound[2]+=down_sample_res
+        trgt_bbx = o3d.geometry.AxisAlignedBoundingBox(min_bound, max_bound) 
+        mesh_pred = mesh_pred.crop(trgt_bbx)
+        # pcd_sample_pred = pcd_sample_pred.crop(trgt_bbx)
+
+    # pcd_sample_pred = mesh_pred.sample_points_poisson_disk(number_of_points=mesh_sample_point, init_factor=possion_sample_init_factor)
+    # mesh uniform sampling
+    pcd_sample_pred = mesh_pred.sample_points_uniformly(number_of_points=mesh_sample_point)
+    
+    if down_sample_res > 0:
+        pred_pt_count_before = len(pcd_sample_pred.points)
+        pcd_pred = pcd_sample_pred.voxel_down_sample(down_sample_res)
+        pcd_trgt = pcd_trgt.voxel_down_sample(down_sample_res)
+        pred_pt_count_after = len(pcd_pred.points)
+        print("Predicted mesh unifrom sample: ", pred_pt_count_before, " --> ", pred_pt_count_after, " (", down_sample_res, "m)")
+    
+    # o3d.visualization.draw_geometries([pcd_trgt])
+
+    verts_pred = np.asarray(pcd_pred.points)
+    verts_trgt = np.asarray(pcd_trgt.points)
+
+    _, dist_p = nn_correspondance(verts_trgt, verts_pred, truncation_acc, False) # find nn in ground truth samples for each predict sample -> precision related
+    _, dist_r = nn_correspondance(verts_pred, verts_trgt, truncation_com, False) # find nn in predict samples for each ground truth sample -> recall related
+
+    dist_p = np.array(dist_p)
+    dist_r = np.array(dist_r)
+
+    print(verts_pred.shape)
+    print(dist_p.shape)
+    rgb1 = np.array([0.,255.,255.])
+    rgb2 = np.array([139., 0., 0.])
+    colors = np.zeros((verts_pred.shape[0], 3))
+    for i in range(verts_pred.shape[0]):
+        err = dist_p[i]
+        if err > 0.5:
+            err = 0.5
+        ratio = err / 0.5  # 0 ~ 1
+        colors[i] = (rgb1*(1. - ratio) + rgb2 * ratio) / 255.0
+    pcd_show = o3d.geometry.PointCloud()
+    pcd_show.points = o3d.utility.Vector3dVector(verts_pred)
+    pcd_show.colors = o3d.utility.Vector3dVector(colors)
+    o3d.visualization.draw_geometries([pcd_show])
 
     dist_p_s = np.square(dist_p)
     dist_r_s = np.square(dist_r)

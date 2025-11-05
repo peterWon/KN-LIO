@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-logdir = '/home/wz/codes/ros_ws/lios/PIN_SLAM/experiments/test_viral_2025-10-14_14-50-18/timecost/'
+logdir = '/media/wz/2C96A0A60155E8F8/Dataset/Portable/LOG/semi_knlio/vehicle_campus00/timecost/'
 timecost_preprocess = np.loadtxt(os.path.join(logdir, 'preprocessing_cost_ms.txt')).astype(np.float32)
 timecost_tracking = np.loadtxt(os.path.join(logdir, 'tracking_cost_ms.txt')).astype(np.float32)
 timecost_mapping = np.loadtxt(os.path.join(logdir, 'mapping_cost_ms.txt')).astype(np.float32)
