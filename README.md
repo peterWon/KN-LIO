@@ -54,3 +54,8 @@ And then run:
 ```
 python3 kn-lio.py ./config/viral/eee_01.yaml
 ```
+
+## Acknowledgements:
+- The authors of [PIN_SLAM](https://github.com/PRBonn/PIN_SLAM)
+- The authors of [LISA](https://github.com/velatkilic/LISA)
+- The authors of [perturb_pointcloud](https://github.com/boyang9602/perturb_pointcloud)
