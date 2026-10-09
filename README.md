@@ -1,7 +1,9 @@
 <p align="center">
 
-<h1 align="center">KN-LIO: Kinematics and Neural Field Coupled
-LiDAR-Inertial Odometry</h1>
+<h1 align="center">Implementation of "KN-LIO: Kinematics and Neural Field Coupled
+LiDAR-Inertial Odometry ''</h1>
+
+[Download paper](https://ieeexplore.ieee.org/abstract/document/11715968)
 
 ## Installation
 
@@ -42,7 +44,7 @@ pip3 install -r requirements.txt
 ### Clone the repository
 
 ```
-git clone https://gitee.com/alilili_ali/kn-lio
+git clone https://github.com/peterWon/KN-LIO.git
 cd kn-lio
 ```
 
